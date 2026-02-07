@@ -18,7 +18,7 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
-import { Package, Plus, Search, Camera, Video, Plane, Loader2 } from 'lucide-react';
+import { Package, Plus, Search, Camera, Video, Plane, Loader2, Heart, Film, Users, Book } from 'lucide-react';
 
 interface PackageData {
   id: string;
@@ -28,9 +28,17 @@ interface PackageData {
   videos_count: number | null;
   reels_count: number | null;
   drone_included: boolean | null;
+  candid_included: boolean | null;
+  traditional_included: boolean | null;
+  pre_wedding_included: boolean | null;
   album_size: string | null;
+  album_pages: number | null;
+  delivery_days: number | null;
   base_price: number;
   is_active: boolean | null;
+  highlights: string[] | null;
+  inclusions: string[] | null;
+  exclusions: string[] | null;
   created_at: string;
 }
 
@@ -54,9 +62,17 @@ export default function Packages() {
     videos_count: 0,
     reels_count: 0,
     drone_included: false,
+    candid_included: true,
+    traditional_included: true,
+    pre_wedding_included: false,
     album_size: '',
+    album_pages: 0,
+    delivery_days: 30,
     base_price: 0,
     is_active: true,
+    highlights: '',
+    inclusions: '',
+    exclusions: '',
   });
 
   useEffect(() => {
@@ -96,9 +112,17 @@ export default function Packages() {
       videos_count: 0,
       reels_count: 0,
       drone_included: false,
+      candid_included: true,
+      traditional_included: true,
+      pre_wedding_included: false,
       album_size: '',
+      album_pages: 0,
+      delivery_days: 30,
       base_price: 0,
       is_active: true,
+      highlights: '',
+      inclusions: '',
+      exclusions: '',
     });
   };
 
@@ -116,9 +140,17 @@ export default function Packages() {
         videos_count: formData.videos_count,
         reels_count: formData.reels_count,
         drone_included: formData.drone_included,
+        candid_included: formData.candid_included,
+        traditional_included: formData.traditional_included,
+        pre_wedding_included: formData.pre_wedding_included,
         album_size: formData.album_size.trim() || null,
+        album_pages: formData.album_pages,
+        delivery_days: formData.delivery_days,
         base_price: formData.base_price,
         is_active: formData.is_active,
+        highlights: formData.highlights ? formData.highlights.split('\n').filter(Boolean) : null,
+        inclusions: formData.inclusions ? formData.inclusions.split('\n').filter(Boolean) : null,
+        exclusions: formData.exclusions ? formData.exclusions.split('\n').filter(Boolean) : null,
       };
 
       if (editMode && selectedPackage) {
@@ -173,9 +205,17 @@ export default function Packages() {
         videos_count: selectedPackage.videos_count || 0,
         reels_count: selectedPackage.reels_count || 0,
         drone_included: selectedPackage.drone_included || false,
+        candid_included: selectedPackage.candid_included ?? true,
+        traditional_included: selectedPackage.traditional_included ?? true,
+        pre_wedding_included: selectedPackage.pre_wedding_included || false,
         album_size: selectedPackage.album_size || '',
+        album_pages: selectedPackage.album_pages || 0,
+        delivery_days: selectedPackage.delivery_days || 30,
         base_price: Number(selectedPackage.base_price),
         is_active: selectedPackage.is_active ?? true,
+        highlights: selectedPackage.highlights?.join('\n') || '',
+        inclusions: selectedPackage.inclusions?.join('\n') || '',
+        exclusions: selectedPackage.exclusions?.join('\n') || '',
       });
       setEditMode(true);
       setIsDetailOpen(false);
@@ -221,7 +261,7 @@ export default function Packages() {
           {filteredPackages.map((pkg) => (
             <div
               key={pkg.id}
-              className="zoho-card p-5 cursor-pointer hover:shadow-zoho-md transition-shadow"
+              className="zoho-card p-5 cursor-pointer hover:shadow-md transition-shadow"
               onClick={() => { setSelectedPackage(pkg); setIsDetailOpen(true); }}
             >
               <div className="flex items-start justify-between mb-3">
@@ -255,10 +295,21 @@ export default function Packages() {
                     Drone
                   </span>
                 )}
+                {pkg.pre_wedding_included && (
+                  <span className="text-xs px-2 py-1 bg-pink-500/10 text-pink-600 rounded flex items-center gap-1">
+                    <Heart className="h-3 w-3" />
+                    Pre-Wed
+                  </span>
+                )}
               </div>
-              <p className="text-xl font-bold text-primary">
-                ₹{Number(pkg.base_price).toLocaleString()}
-              </p>
+              <div className="flex items-center justify-between">
+                <p className="text-xl font-bold text-primary">
+                  ₹{Number(pkg.base_price).toLocaleString()}
+                </p>
+                {pkg.delivery_days && (
+                  <span className="text-xs text-muted-foreground">{pkg.delivery_days} days delivery</span>
+                )}
+              </div>
             </div>
           ))}
         </div>
@@ -281,6 +332,23 @@ export default function Packages() {
             {selectedPackage.description && (
               <p className="text-muted-foreground">{selectedPackage.description}</p>
             )}
+            
+            {/* Photography Services */}
+            <div className="flex flex-wrap gap-2">
+              {selectedPackage.candid_included && (
+                <span className="text-xs px-3 py-1.5 bg-primary/10 text-primary rounded-full">Candid</span>
+              )}
+              {selectedPackage.traditional_included && (
+                <span className="text-xs px-3 py-1.5 bg-primary/10 text-primary rounded-full">Traditional</span>
+              )}
+              {selectedPackage.pre_wedding_included && (
+                <span className="text-xs px-3 py-1.5 bg-pink-500/10 text-pink-600 rounded-full">Pre-Wedding</span>
+              )}
+              {selectedPackage.drone_included && (
+                <span className="text-xs px-3 py-1.5 bg-cyan-500/10 text-cyan-600 rounded-full">Drone</span>
+              )}
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <p className="text-sm text-muted-foreground">Photos</p>
@@ -295,25 +363,58 @@ export default function Packages() {
                 <p className="font-medium">{selectedPackage.reels_count || 0}</p>
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Drone</p>
-                <p className="font-medium">{selectedPackage.drone_included ? 'Included' : 'Not included'}</p>
+                <p className="text-sm text-muted-foreground">Delivery</p>
+                <p className="font-medium">{selectedPackage.delivery_days || 30} days</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Album Size</p>
                 <p className="font-medium">{selectedPackage.album_size || '-'}</p>
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Status</p>
-                <p className="font-medium">{selectedPackage.is_active ? 'Active' : 'Inactive'}</p>
+                <p className="text-sm text-muted-foreground">Album Pages</p>
+                <p className="font-medium">{selectedPackage.album_pages || 0}</p>
               </div>
             </div>
+
+            {selectedPackage.highlights && selectedPackage.highlights.length > 0 && (
+              <div>
+                <p className="text-sm font-medium mb-2">Highlights</p>
+                <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
+                  {selectedPackage.highlights.map((h, i) => (
+                    <li key={i}>{h}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {selectedPackage.inclusions && selectedPackage.inclusions.length > 0 && (
+              <div>
+                <p className="text-sm font-medium mb-2 text-success">Inclusions</p>
+                <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
+                  {selectedPackage.inclusions.map((inc, i) => (
+                    <li key={i}>{inc}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {selectedPackage.exclusions && selectedPackage.exclusions.length > 0 && (
+              <div>
+                <p className="text-sm font-medium mb-2 text-destructive">Exclusions</p>
+                <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
+                  {selectedPackage.exclusions.map((exc, i) => (
+                    <li key={i}>{exc}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         )}
       </DetailModal>
 
       {/* Form Dialog */}
       <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editMode ? 'Edit Package' : 'New Package'}</DialogTitle>
           </DialogHeader>
@@ -346,7 +447,44 @@ export default function Packages() {
                 required
               />
             </div>
-            <div className="grid grid-cols-3 gap-4">
+
+            {/* Photography Services */}
+            <div className="space-y-3 p-3 rounded-lg bg-muted/50">
+              <p className="text-sm font-medium">Photography Services</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex items-center gap-2">
+                  <Switch
+                    checked={formData.candid_included}
+                    onCheckedChange={(v) => setFormData({ ...formData, candid_included: v })}
+                  />
+                  <Label className="text-sm">Candid</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Switch
+                    checked={formData.traditional_included}
+                    onCheckedChange={(v) => setFormData({ ...formData, traditional_included: v })}
+                  />
+                  <Label className="text-sm">Traditional</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Switch
+                    checked={formData.pre_wedding_included}
+                    onCheckedChange={(v) => setFormData({ ...formData, pre_wedding_included: v })}
+                  />
+                  <Label className="text-sm">Pre-Wedding</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Switch
+                    checked={formData.drone_included}
+                    onCheckedChange={(v) => setFormData({ ...formData, drone_included: v })}
+                  />
+                  <Label className="text-sm">Drone</Label>
+                </div>
+              </div>
+            </div>
+
+            {/* Deliverables */}
+            <div className="grid grid-cols-4 gap-3">
               <div className="space-y-2">
                 <Label>Photos</Label>
                 <Input
@@ -374,31 +512,79 @@ export default function Packages() {
                   min={0}
                 />
               </div>
+              <div className="space-y-2">
+                <Label>Delivery Days</Label>
+                <Input
+                  type="number"
+                  value={formData.delivery_days}
+                  onChange={(e) => setFormData({ ...formData, delivery_days: Number(e.target.value) })}
+                  min={1}
+                />
+              </div>
             </div>
+
+            {/* Album Details */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Album Size</Label>
+                <Input
+                  value={formData.album_size}
+                  onChange={(e) => setFormData({ ...formData, album_size: e.target.value })}
+                  placeholder="e.g., 12x36 inches"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Album Pages</Label>
+                <Input
+                  type="number"
+                  value={formData.album_pages}
+                  onChange={(e) => setFormData({ ...formData, album_pages: Number(e.target.value) })}
+                  min={0}
+                />
+              </div>
+            </div>
+
+            {/* Highlights */}
             <div className="space-y-2">
-              <Label>Album Size</Label>
-              <Input
-                value={formData.album_size}
-                onChange={(e) => setFormData({ ...formData, album_size: e.target.value })}
-                placeholder="e.g., 12x36 inches, 40 pages"
+              <Label>Highlights (one per line)</Label>
+              <Textarea
+                value={formData.highlights}
+                onChange={(e) => setFormData({ ...formData, highlights: e.target.value })}
+                placeholder="Best-in-class photography&#10;4K video quality&#10;Same-day edits"
+                rows={3}
               />
             </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Switch
-                  checked={formData.drone_included}
-                  onCheckedChange={(v) => setFormData({ ...formData, drone_included: v })}
+
+            {/* Inclusions & Exclusions */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-success">Inclusions (one per line)</Label>
+                <Textarea
+                  value={formData.inclusions}
+                  onChange={(e) => setFormData({ ...formData, inclusions: e.target.value })}
+                  placeholder="All edited photos&#10;Wedding highlights video"
+                  rows={3}
                 />
-                <Label>Drone Included</Label>
               </div>
-              <div className="flex items-center gap-2">
-                <Switch
-                  checked={formData.is_active}
-                  onCheckedChange={(v) => setFormData({ ...formData, is_active: v })}
+              <div className="space-y-2">
+                <Label className="text-destructive">Exclusions (one per line)</Label>
+                <Textarea
+                  value={formData.exclusions}
+                  onChange={(e) => setFormData({ ...formData, exclusions: e.target.value })}
+                  placeholder="Travel expenses&#10;Extra album copies"
+                  rows={3}
                 />
-                <Label>Active</Label>
               </div>
             </div>
+
+            <div className="flex items-center gap-2">
+              <Switch
+                checked={formData.is_active}
+                onCheckedChange={(v) => setFormData({ ...formData, is_active: v })}
+              />
+              <Label>Active Package</Label>
+            </div>
+
             <div className="flex justify-end gap-3 pt-4">
               <Button type="button" variant="outline" onClick={() => setIsFormOpen(false)}>
                 Cancel

@@ -82,7 +82,7 @@ export function FullscreenViewer({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[100vw] max-h-[100vh] w-screen h-screen p-0 bg-black/95 border-none [&>button]:hidden">
+      <DialogContent className="max-w-[100vw] max-h-[100vh] w-screen h-screen p-0 bg-black/95 border-none [&>button]:hidden sm:max-w-[100vw]">
         {/* Header */}
         <div className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between px-4 py-3 bg-gradient-to-b from-black/80 to-transparent">
           <div className="text-white">
@@ -181,7 +181,7 @@ export function FullscreenViewer({
               src={currentFile.file_url}
               controls
               autoPlay
-              className="max-w-[90vw] max-h-[85vh]"
+              className="max-w-[95vw] max-h-[90vh]"
               onLoadedData={() => setIsLoading(false)}
             />
           )}

@@ -417,7 +417,7 @@ export default function ClientSelect() {
               </Button>
             )}
             {signedFiles[viewerIndex]?.signedUrl && (
-              <img src={signedFiles[viewerIndex].signedUrl} alt="" className="max-w-[90vw] max-h-[80vh] object-contain" />
+              <img src={signedFiles[viewerIndex].signedUrl} alt="" className="max-w-[95vw] max-h-[90vh] object-contain" />
             )}
             {viewerIndex < signedFiles.length - 1 && (
               <Button variant="ghost" size="icon" onClick={() => setViewerIndex(i => i + 1)} className="absolute right-4 z-10 h-12 w-12 rounded-full bg-black/50 text-white hover:bg-black/70">

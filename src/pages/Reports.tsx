@@ -9,6 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import {
@@ -27,6 +28,7 @@ import {
   Receipt,
   CreditCard,
   PieChart as PieChartIcon,
+  Zap,
 } from 'lucide-react';
 import {
   BarChart,
@@ -85,6 +87,12 @@ interface PaymentStatusData {
   color: string;
 }
 
+interface BusinessInsight {
+  title: string;
+  message: string;
+  type: 'success' | 'warning' | 'info';
+}
+
 export default function Reports() {
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState('6months');
@@ -109,11 +117,23 @@ export default function Reports() {
   const [expenseCategoryData, setExpenseCategoryData] = useState<ExpenseCategoryData[]>([]);
   const [paymentStatusData, setPaymentStatusData] = useState<PaymentStatusData[]>([]);
   const [packageData, setPackageData] = useState<{ name: string; bookings: number; revenue: number }[]>([]);
+  const [insights, setInsights] = useState<BusinessInsight[]>([]);
+  const [currentInsightIndex, setCurrentInsightIndex] = useState(0);
   const { user } = useAuth();
 
   useEffect(() => {
     if (user) fetchReportData();
   }, [user, dateRange]);
+
+  // Rotate insights every 5 seconds
+  useEffect(() => {
+    if (insights.length > 1) {
+      const interval = setInterval(() => {
+        setCurrentInsightIndex((prev) => (prev + 1) % insights.length);
+      }, 5000);
+      return () => clearInterval(interval);
+    }
+  }, [insights.length]);
 
   const fetchReportData = async () => {
     setLoading(true);
@@ -358,6 +378,69 @@ export default function Reports() {
           .sort((a, b) => b.bookings - a.bookings)
           .slice(0, 10)
       );
+
+      // Generate business insights
+      const generatedInsights: BusinessInsight[] = [];
+      
+      if (totalRevenue > 0) {
+        const profitMargin = ((totalRevenue - totalExpenses) / totalRevenue) * 100;
+        if (profitMargin > 30) {
+          generatedInsights.push({
+            title: 'Strong Profit Margin',
+            message: `${profitMargin.toFixed(1)}% profit margin! Your business is highly efficient.`,
+            type: 'success',
+          });
+        } else if (profitMargin < 10) {
+          generatedInsights.push({
+            title: 'Low Margin Alert',
+            message: `Only ${profitMargin.toFixed(1)}% profit margin. Review expenses to improve profitability.`,
+            type: 'warning',
+          });
+        }
+      }
+
+      if (pendingPayments > 100000) {
+        generatedInsights.push({
+          title: 'Outstanding Payments',
+          message: `Rs. ${pendingPayments.toLocaleString()} pending. Focus on collection to improve cash flow.`,
+          type: 'warning',
+        });
+      }
+
+      if (conversionRate > 70) {
+        generatedInsights.push({
+          title: 'Excellent Conversion',
+          message: `${conversionRate.toFixed(0)}% conversion rate! Your inquiry handling is strong.`,
+          type: 'success',
+        });
+      }
+
+      const topEventType = Object.entries(eventCounts).sort((a, b) => b[1].revenue - a[1].revenue)[0];
+      if (topEventType) {
+        generatedInsights.push({
+          title: 'Top Revenue Source',
+          message: `${topEventType[0].charAt(0).toUpperCase() + topEventType[0].slice(1)} events bring Rs. ${topEventType[1].revenue.toLocaleString()} in revenue.`,
+          type: 'info',
+        });
+      }
+
+      if (deliveredBookings > 0) {
+        generatedInsights.push({
+          title: 'Delivery Performance',
+          message: `${deliveredBookings} bookings delivered with ${avgTurnaroundDays} days average turnaround.`,
+          type: 'info',
+        });
+      }
+
+      if (generatedInsights.length === 0) {
+        generatedInsights.push({
+          title: 'Getting Started',
+          message: 'Add more bookings and expenses to see personalized insights.',
+          type: 'info',
+        });
+      }
+
+      setInsights(generatedInsights);
     } catch (error) {
       console.error('Error fetching report data:', error);
     } finally {
@@ -406,6 +489,38 @@ export default function Reports() {
         </div>
       ) : (
         <div className="space-y-6">
+          {/* Business Insights Banner */}
+          {insights.length > 0 && (
+            <div
+              className={cn(
+                'p-4 rounded-xl border-l-4 flex items-center gap-3 transition-all duration-500',
+                insights[currentInsightIndex].type === 'success' && 'bg-success/10 border-success/50 text-success',
+                insights[currentInsightIndex].type === 'warning' && 'bg-warning/10 border-warning/50 text-warning',
+                insights[currentInsightIndex].type === 'info' && 'bg-info/10 border-info/50 text-info'
+              )}
+            >
+              <Zap className="h-5 w-5 flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-sm">{insights[currentInsightIndex].title}</p>
+                <p className="text-sm opacity-90">{insights[currentInsightIndex].message}</p>
+              </div>
+              {insights.length > 1 && (
+                <div className="flex gap-1">
+                  {insights.map((_, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => setCurrentInsightIndex(idx)}
+                      className={cn(
+                        'w-2 h-2 rounded-full transition-all',
+                        idx === currentInsightIndex ? 'bg-current' : 'bg-current/30'
+                      )}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Stats Grid */}
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
             {statCards.map((stat) => (
