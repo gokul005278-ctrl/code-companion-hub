@@ -162,7 +162,7 @@
 }
 
 @layer components {
-  /* Shimmer loader animation */
+  /* Shimmer loader animation - reduced motion safe */
   .shimmer {
     @apply relative overflow-hidden bg-muted;
   }
@@ -179,12 +179,34 @@
     animation: shimmer 1.5s infinite;
   }
 
+  /* Static shimmer for mobile to prevent flickering */
+  .shimmer-static {
+    @apply bg-muted;
+    background: linear-gradient(
+      90deg,
+      hsl(var(--muted)) 0%,
+      hsl(var(--muted-foreground) / 0.1) 50%,
+      hsl(var(--muted)) 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer-pulse 2s ease-in-out infinite;
+  }
+
   @keyframes shimmer {
     0% {
       transform: translateX(-100%);
     }
     100% {
       transform: translateX(100%);
+    }
+  }
+
+  @keyframes shimmer-pulse {
+    0%, 100% {
+      background-position: 200% 0;
+    }
+    50% {
+      background-position: 0 0;
     }
   }
 
