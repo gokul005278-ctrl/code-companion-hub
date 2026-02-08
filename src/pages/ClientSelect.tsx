@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -19,9 +19,13 @@ import {
   Send,
   ChevronLeft,
   ChevronRight,
+  ZoomIn,
+  ZoomOut,
+  RotateCw,
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { FullscreenImageViewer } from '@/components/media/FullscreenImageViewer';
 
 interface TemporaryAccess {
   id: string;
@@ -401,44 +405,20 @@ export default function ClientSelect() {
         </div>
       )}
 
-      {/* Fullscreen Viewer */}
+      {/* Fullscreen Viewer with Zoom */}
       {viewerOpen && signedFiles.length > 0 && (
-        <div className="fixed inset-0 z-[60] bg-black/95 flex flex-col">
-          <div className="flex items-center justify-between px-4 py-3">
-            <p className="text-white text-sm">{viewerIndex + 1} of {signedFiles.length}</p>
-            <Button variant="ghost" size="icon" onClick={() => setViewerOpen(false)} className="text-white hover:bg-white/20">
-              <X className="h-5 w-5" />
-            </Button>
-          </div>
-          <div className="flex-1 flex items-center justify-center relative">
-            {viewerIndex > 0 && (
-              <Button variant="ghost" size="icon" onClick={() => setViewerIndex(i => i - 1)} className="absolute left-4 z-10 h-12 w-12 rounded-full bg-black/50 text-white hover:bg-black/70">
-                <ChevronLeft className="h-8 w-8" />
-              </Button>
-            )}
-            {signedFiles[viewerIndex]?.signedUrl && (
-              <img src={signedFiles[viewerIndex].signedUrl} alt="" className="max-w-[95vw] max-h-[90vh] object-contain" />
-            )}
-            {viewerIndex < signedFiles.length - 1 && (
-              <Button variant="ghost" size="icon" onClick={() => setViewerIndex(i => i + 1)} className="absolute right-4 z-10 h-12 w-12 rounded-full bg-black/50 text-white hover:bg-black/70">
-                <ChevronRight className="h-8 w-8" />
-              </Button>
-            )}
-            {/* Heart selection in viewer */}
-            <button
-              onClick={() => {
-                const file = files[viewerIndex];
-                if (file) toggleSelection(file);
-              }}
-              className={cn(
-                'absolute top-4 right-4 p-3 rounded-full transition-all',
-                files[viewerIndex]?.is_selected ? 'bg-primary text-primary-foreground' : 'bg-white/20 text-white'
-              )}
-            >
-              <Heart className={cn('h-6 w-6', files[viewerIndex]?.is_selected && 'fill-current')} />
-            </button>
-          </div>
-        </div>
+        <FullscreenImageViewer
+          files={signedFiles}
+          currentIndex={viewerIndex}
+          onClose={() => setViewerOpen(false)}
+          onPrev={() => setViewerIndex(i => Math.max(0, i - 1))}
+          onNext={() => setViewerIndex(i => Math.min(signedFiles.length - 1, i + 1))}
+          onToggleFavorite={() => {
+            const file = files[viewerIndex];
+            if (file) toggleSelection(file);
+          }}
+          isFavorite={files[viewerIndex]?.is_selected || false}
+        />
       )}
     </div>
   );

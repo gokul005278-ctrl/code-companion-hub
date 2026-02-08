@@ -16,6 +16,7 @@ import {
   LogOut,
   Target,
   Receipt,
+  HelpCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
@@ -51,6 +52,7 @@ const secondaryNavItems: NavItem[] = [
   { title: 'Expenses', href: '/expenses', icon: Receipt },
   { title: 'Reports', href: '/reports', icon: BarChart3 },
   { title: 'Settings', href: '/settings', icon: Settings },
+  { title: 'Help & Support', href: '/help', icon: HelpCircle },
 ];
 
 export function AppSidebar() {
