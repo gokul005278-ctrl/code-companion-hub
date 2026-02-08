@@ -47,6 +47,45 @@ export type Database = {
         }
         Relationships: []
       }
+      booking_addons: {
+        Row: {
+          addon_id: string
+          booking_id: string
+          created_at: string | null
+          custom_price: number | null
+          id: string
+        }
+        Insert: {
+          addon_id: string
+          booking_id: string
+          created_at?: string | null
+          custom_price?: number | null
+          id?: string
+        }
+        Update: {
+          addon_id?: string
+          booking_id?: string
+          created_at?: string | null
+          custom_price?: number | null
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_addons_addon_id_fkey"
+            columns: ["addon_id"]
+            isOneToOne: false
+            referencedRelation: "package_addons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_addons_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       booking_tasks: {
         Row: {
           assigned_to: string | null
@@ -149,12 +188,15 @@ export type Database = {
       bookings: {
         Row: {
           advance_amount: number | null
+          album_delivered: boolean | null
           balance_amount: number | null
           client_id: string | null
           created_at: string
+          delivery_notes: string | null
           event_date: string
           event_time: string | null
           event_type: Database["public"]["Enums"]["event_type"]
+          final_payment_received: boolean | null
           id: string
           location: string | null
           notes: string | null
@@ -168,12 +210,15 @@ export type Database = {
         }
         Insert: {
           advance_amount?: number | null
+          album_delivered?: boolean | null
           balance_amount?: number | null
           client_id?: string | null
           created_at?: string
+          delivery_notes?: string | null
           event_date: string
           event_time?: string | null
           event_type: Database["public"]["Enums"]["event_type"]
+          final_payment_received?: boolean | null
           id?: string
           location?: string | null
           notes?: string | null
@@ -187,12 +232,15 @@ export type Database = {
         }
         Update: {
           advance_amount?: number | null
+          album_delivered?: boolean | null
           balance_amount?: number | null
           client_id?: string | null
           created_at?: string
+          delivery_notes?: string | null
           event_date?: string
           event_time?: string | null
           event_type?: Database["public"]["Enums"]["event_type"]
+          final_payment_received?: boolean | null
           id?: string
           location?: string | null
           notes?: string | null
@@ -543,6 +591,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      package_addons: {
+        Row: {
+          created_at: string | null
+          default_price: number | null
+          description: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          owner_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          default_price?: number | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          owner_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          default_price?: number | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          owner_id?: string
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       packages: {
         Row: {

@@ -26,7 +26,7 @@ export default function Settings() {
   const { user, signOut } = useAuth();
 
   const [profileData, setProfileData] = useState({ full_name: '', studio_name: '', phone: '' });
-  const [passwordData, setPasswordData] = useState({ newPassword: '', confirmPassword: '' });
+  const [passwordData, setPasswordData] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
   const [notificationSettings, setNotificationSettings] = useState({
     email_bookings: true, email_payments: true, email_selections: true, browser_notifications: false,
   });
@@ -86,6 +86,9 @@ export default function Settings() {
   };
 
   const handleChangePassword = async () => {
+    if (!passwordData.currentPassword) {
+      toast.error('Current password is required'); return;
+    }
     if (passwordData.newPassword !== passwordData.confirmPassword) {
       toast.error('Passwords do not match'); return;
     }
@@ -94,10 +97,20 @@ export default function Settings() {
     }
     setChangingPassword(true);
     try {
+      // First verify current password by signing in
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: user?.email || '',
+        password: passwordData.currentPassword,
+      });
+      if (signInError) {
+        toast.error('Current password is incorrect');
+        return;
+      }
+      // Then update password
       const { error } = await supabase.auth.updateUser({ password: passwordData.newPassword });
       if (error) throw error;
       toast.success('Password updated successfully');
-      setPasswordData({ newPassword: '', confirmPassword: '' });
+      setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
     } catch (error: any) { toast.error(error.message || 'Failed to update password'); }
     finally { setChangingPassword(false); }
   };
@@ -203,6 +216,10 @@ export default function Settings() {
                 <h3 className="text-lg font-semibold mb-6">Change Password</h3>
                 <div className="grid gap-4">
                   <div className="space-y-2">
+                    <Label>Current Password *</Label>
+                    <Input type="password" value={passwordData.currentPassword} onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })} placeholder="••••••••" autoComplete="current-password" data-form-type="other" />
+                  </div>
+                  <div className="space-y-2">
                     <Label>New Password</Label>
                     <Input type="password" value={passwordData.newPassword} onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })} placeholder="••••••••" autoComplete="new-password" data-form-type="other" />
                   </div>
@@ -212,7 +229,7 @@ export default function Settings() {
                   </div>
                 </div>
                 <div className="flex justify-end mt-6">
-                  <Button onClick={handleChangePassword} disabled={changingPassword || !passwordData.newPassword} className="btn-fade">
+                  <Button onClick={handleChangePassword} disabled={changingPassword || !passwordData.currentPassword || !passwordData.newPassword} className="btn-fade">
                     {changingPassword ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}Update Password
                   </Button>
                 </div>

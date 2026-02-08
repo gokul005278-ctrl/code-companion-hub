@@ -3,6 +3,7 @@ import { MainLayout } from '@/components/layout/MainLayout';
 import { ShimmerStats, ShimmerList, ShimmerCard } from '@/components/ui/ShimmerLoader';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { SpeedometerGauge } from '@/components/ui/SpeedometerGauge';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import {
@@ -19,6 +20,8 @@ import {
   ChevronRight,
   Zap,
   Receipt,
+  Phone,
+  Bell,
 } from 'lucide-react';
 import { format, addDays, isToday, isTomorrow, startOfMonth, endOfMonth, parseISO, differenceInDays } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -55,6 +58,14 @@ interface UpcomingEvent {
   location: string | null;
 }
 
+interface UpcomingFollowUp {
+  id: string;
+  name: string;
+  follow_up_date: string;
+  phone: string | null;
+  event_type: string | null;
+}
+
 interface BusinessInsight {
   title: string;
   message: string;
@@ -76,8 +87,10 @@ export default function Dashboard() {
   });
   const [recentBookings, setRecentBookings] = useState<RecentBooking[]>([]);
   const [upcomingEvents, setUpcomingEvents] = useState<UpcomingEvent[]>([]);
+  const [upcomingFollowUps, setUpcomingFollowUps] = useState<UpcomingFollowUp[]>([]);
   const [insights, setInsights] = useState<BusinessInsight[]>([]);
   const [currentInsightIndex, setCurrentInsightIndex] = useState(0);
+  const [todayActions, setTodayActions] = useState(0);
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -112,6 +125,8 @@ export default function Dashboard() {
         upcomingRes,
         recentRes,
         tasksRes,
+        followUpsRes,
+        activityRes,
       ] = await Promise.all([
         supabase.from('bookings').select('*', { count: 'exact' }),
         supabase.from('clients').select('*', { count: 'exact' }),
@@ -138,6 +153,17 @@ export default function Dashboard() {
           .order('created_at', { ascending: false })
           .limit(5),
         supabase.from('booking_tasks').select('id, status'),
+        supabase
+          .from('leads')
+          .select('id, name, follow_up_date, phone, event_type')
+          .gte('follow_up_date', format(new Date(), 'yyyy-MM-dd'))
+          .lte('follow_up_date', format(next7Days, 'yyyy-MM-dd'))
+          .order('follow_up_date', { ascending: true })
+          .limit(5),
+        supabase
+          .from('activity_log')
+          .select('id, created_at')
+          .gte('created_at', format(new Date(), 'yyyy-MM-dd'))
       ]);
 
       const bookings = bookingsRes.data || [];
@@ -168,6 +194,8 @@ export default function Dashboard() {
 
       setUpcomingEvents((upcomingRes.data as UpcomingEvent[]) || []);
       setRecentBookings((recentRes.data as any) || []);
+      setUpcomingFollowUps((followUpsRes.data as UpcomingFollowUp[]) || []);
+      setTodayActions(activityRes.data?.length || 0);
 
       // Generate insights
       const generatedInsights: BusinessInsight[] = [];
@@ -370,37 +398,22 @@ export default function Dashboard() {
 
           {/* Secondary Stats Row */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {/* Productivity Score */}
-            <div className="zoho-card p-4">
-              <div className="flex items-center gap-2 mb-3">
+            {/* Productivity Score - Speedometer */}
+            <div className="zoho-card p-4 md:col-span-1">
+              <div className="flex items-center gap-2 mb-2">
                 <Target className="h-4 w-4 text-primary" />
                 <span className="text-sm font-medium">Productivity</span>
               </div>
-              <div className="flex items-center gap-3">
-                <div className="relative h-12 w-12">
-                  <svg className="h-12 w-12 -rotate-90" viewBox="0 0 36 36">
-                    <path
-                      d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                      fill="none"
-                      stroke="hsl(var(--muted))"
-                      strokeWidth="3"
-                    />
-                    <path
-                      d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                      fill="none"
-                      stroke="hsl(var(--primary))"
-                      strokeWidth="3"
-                      strokeDasharray={`${productivityScore}, 100`}
-                    />
-                  </svg>
-                  <span className="absolute inset-0 flex items-center justify-center text-xs font-bold">
-                    {productivityScore}%
-                  </span>
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  {stats.completedTasks}/{stats.totalTasks} tasks
-                </div>
-              </div>
+              <SpeedometerGauge 
+                value={productivityScore} 
+                size="sm"
+                sublabel={`${stats.completedTasks}/${stats.totalTasks} tasks`}
+              />
+              {todayActions > 0 && (
+                <p className="text-xs text-muted-foreground text-center mt-2">
+                  {todayActions} actions today
+                </p>
+              )}
             </div>
 
             {/* Monthly Revenue */}
@@ -439,6 +452,7 @@ export default function Dashboard() {
               <p className="text-xs text-muted-foreground">To be collected</p>
             </div>
           </div>
+
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Recent Bookings */}
@@ -493,60 +507,119 @@ export default function Dashboard() {
               )}
             </div>
 
-            {/* Upcoming Calendar */}
-            <div className="zoho-card">
-              <div className="p-4 border-b border-border flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-foreground">Upcoming Events</h2>
-                <button
-                  onClick={() => navigate('/calendar')}
-                  className="text-sm text-primary hover:underline flex items-center gap-1"
-                >
-                  Calendar <ChevronRight className="h-4 w-4" />
-                </button>
-              </div>
-              {upcomingEvents.length === 0 ? (
-                <div className="p-6 text-center">
-                  <Clock className="h-10 w-10 text-muted-foreground mx-auto mb-3 opacity-50" />
-                  <p className="text-sm text-muted-foreground">No upcoming events this week</p>
+            {/* Right Column - Events & Follow-ups */}
+            <div className="space-y-6">
+              {/* Upcoming Calendar */}
+              <div className="zoho-card">
+                <div className="p-4 border-b border-border flex items-center justify-between">
+                  <h2 className="text-lg font-semibold text-foreground">Upcoming Events</h2>
+                  <button
+                    onClick={() => navigate('/calendar')}
+                    className="text-sm text-primary hover:underline flex items-center gap-1"
+                  >
+                    Calendar <ChevronRight className="h-4 w-4" />
+                  </button>
                 </div>
-              ) : (
-                <div className="divide-y divide-border">
-                  {upcomingEvents.map((event) => (
-                    <div
-                      key={event.id}
-                      className={cn(
-                        'p-4 border-l-4 cursor-pointer hover:bg-accent/30 transition-colors',
-                        getEventColor(event.event_type)
-                      )}
-                      onClick={() => navigate(`/bookings?id=${event.id}`)}
-                    >
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <p className="font-medium text-foreground text-sm">
-                            {event.client?.name || 'Unknown'}
-                          </p>
-                          <p className="text-xs capitalize opacity-80">
-                            {event.event_type.replace(/_/g, ' ')}
-                          </p>
+                {upcomingEvents.length === 0 ? (
+                  <div className="p-6 text-center">
+                    <Clock className="h-10 w-10 text-muted-foreground mx-auto mb-3 opacity-50" />
+                    <p className="text-sm text-muted-foreground">No upcoming events this week</p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-border">
+                    {upcomingEvents.map((event) => (
+                      <div
+                        key={event.id}
+                        className={cn(
+                          'p-4 border-l-4 cursor-pointer hover:bg-accent/30 transition-colors',
+                          getEventColor(event.event_type)
+                        )}
+                        onClick={() => navigate(`/bookings?id=${event.id}`)}
+                      >
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <p className="font-medium text-foreground text-sm">
+                              {event.client?.name || 'Unknown'}
+                            </p>
+                            <p className="text-xs capitalize opacity-80">
+                              {event.event_type.replace(/_/g, ' ')}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xs font-semibold">
+                              {getEventDateLabel(event.event_date)}
+                            </p>
+                            {event.event_time && (
+                              <p className="text-xs text-muted-foreground">{event.event_time}</p>
+                            )}
+                          </div>
                         </div>
-                        <div className="text-right">
-                          <p className="text-xs font-semibold">
-                            {getEventDateLabel(event.event_date)}
+                        {event.location && (
+                          <p className="text-xs text-muted-foreground mt-1 truncate">
+                            📍 {event.location}
                           </p>
-                          {event.event_time && (
-                            <p className="text-xs text-muted-foreground">{event.event_time}</p>
-                          )}
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Upcoming Follow-ups */}
+              <div className="zoho-card">
+                <div className="p-4 border-b border-border flex items-center justify-between">
+                  <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                    <Bell className="h-4 w-4 text-warning" />
+                    Follow-ups
+                  </h2>
+                  <button
+                    onClick={() => navigate('/leads')}
+                    className="text-sm text-primary hover:underline flex items-center gap-1"
+                  >
+                    View all <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
+                {upcomingFollowUps.length === 0 ? (
+                  <div className="p-6 text-center">
+                    <Bell className="h-10 w-10 text-muted-foreground mx-auto mb-3 opacity-50" />
+                    <p className="text-sm text-muted-foreground">No follow-ups scheduled</p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-border">
+                    {upcomingFollowUps.map((lead) => (
+                      <div
+                        key={lead.id}
+                        className="p-3 hover:bg-accent/30 transition-colors cursor-pointer"
+                        onClick={() => navigate('/leads')}
+                      >
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <p className="font-medium text-foreground text-sm">{lead.name}</p>
+                            <p className="text-xs text-muted-foreground capitalize">
+                              {lead.event_type?.replace(/_/g, ' ') || 'General Inquiry'}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xs font-semibold text-warning">
+                              {getEventDateLabel(lead.follow_up_date)}
+                            </p>
+                            {lead.phone && (
+                              <a 
+                                href={`tel:${lead.phone}`}
+                                onClick={(e) => e.stopPropagation()}
+                                className="text-xs text-primary flex items-center gap-1 justify-end mt-0.5"
+                              >
+                                <Phone className="h-3 w-3" />
+                                Call
+                              </a>
+                            )}
+                          </div>
                         </div>
                       </div>
-                      {event.location && (
-                        <p className="text-xs text-muted-foreground mt-1 truncate">
-                          📍 {event.location}
-                        </p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
