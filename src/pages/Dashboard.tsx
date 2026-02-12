@@ -91,6 +91,7 @@ export default function Dashboard() {
   const [insights, setInsights] = useState<BusinessInsight[]>([]);
   const [currentInsightIndex, setCurrentInsightIndex] = useState(0);
   const [todayActions, setTodayActions] = useState(0);
+  const [revenueChange, setRevenueChange] = useState({ percent: 0, positive: true });
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -114,6 +115,8 @@ export default function Dashboard() {
     try {
       const startOfCurrentMonth = startOfMonth(new Date());
       const endOfCurrentMonth = endOfMonth(new Date());
+      const startOfPrevMonth = startOfMonth(addDays(startOfCurrentMonth, -1));
+      const endOfPrevMonth = endOfMonth(addDays(startOfCurrentMonth, -1));
       const next7Days = addDays(new Date(), 7);
 
       // Fetch all data in parallel
@@ -121,6 +124,7 @@ export default function Dashboard() {
         bookingsRes,
         clientsRes,
         paymentsRes,
+        prevMonthPaymentsRes,
         expensesRes,
         upcomingRes,
         recentRes,
@@ -136,13 +140,18 @@ export default function Dashboard() {
           .gte('payment_date', startOfCurrentMonth.toISOString().split('T')[0])
           .lte('payment_date', endOfCurrentMonth.toISOString().split('T')[0]),
         supabase
+          .from('payments')
+          .select('amount')
+          .gte('payment_date', startOfPrevMonth.toISOString().split('T')[0])
+          .lte('payment_date', endOfPrevMonth.toISOString().split('T')[0]),
+        supabase
           .from('expenses')
           .select('amount, expense_date')
           .gte('expense_date', startOfCurrentMonth.toISOString().split('T')[0])
           .lte('expense_date', endOfCurrentMonth.toISOString().split('T')[0]),
         supabase
           .from('bookings')
-          .select(`id, event_type, event_date, event_time, location, client:clients(name)`)
+          .select(`id, event_type, event_date, event_time, location, status, client:clients(name)`)
           .gte('event_date', format(new Date(), 'yyyy-MM-dd'))
           .lte('event_date', format(next7Days, 'yyyy-MM-dd'))
           .order('event_date', { ascending: true })
@@ -168,17 +177,30 @@ export default function Dashboard() {
 
       const bookings = bookingsRes.data || [];
       const payments = paymentsRes.data || [];
+      const prevPayments = prevMonthPaymentsRes.data || [];
       const expenses = expensesRes.data || [];
       const tasks = tasksRes.data || [];
 
       const totalRevenue = bookings.reduce((sum, b) => sum + (Number(b.total_amount) || 0), 0);
       const monthlyRevenue = payments.reduce((sum, p) => sum + Number(p.amount), 0);
+      const prevMonthRevenue = prevPayments.reduce((sum, p) => sum + Number(p.amount), 0);
       const monthlyExpenses = expenses.reduce((sum, e) => sum + Number(e.amount), 0);
       const pendingPayments = bookings
         .filter((b) => b.payment_status === 'pending' || b.payment_status === 'partial')
         .reduce((sum, b) => sum + (Number(b.balance_amount) || 0), 0);
       const pendingDeliveries = bookings.filter((b) => b.status !== 'delivered').length;
       const completedTasks = tasks.filter((t) => t.status === 'completed').length;
+
+      // Calculate revenue change %
+      let revenueChangePercent = 0;
+      let revenuePositive = true;
+      if (prevMonthRevenue > 0) {
+        revenueChangePercent = Math.round(((monthlyRevenue - prevMonthRevenue) / prevMonthRevenue) * 100);
+        revenuePositive = revenueChangePercent >= 0;
+      } else if (monthlyRevenue > 0) {
+        revenueChangePercent = 100;
+        revenuePositive = true;
+      }
 
       setStats({
         totalBookings: bookingsRes.count || 0,
@@ -196,6 +218,7 @@ export default function Dashboard() {
       setRecentBookings((recentRes.data as any) || []);
       setUpcomingFollowUps((followUpsRes.data as UpcomingFollowUp[]) || []);
       setTodayActions(activityRes.data?.length || 0);
+      setRevenueChange({ percent: revenueChangePercent, positive: revenuePositive });
 
       // Generate insights
       const generatedInsights: BusinessInsight[] = [];
@@ -237,6 +260,38 @@ export default function Dashboard() {
           title: 'Great Progress',
           message: `${taskCompletionRate.toFixed(0)}% task completion rate. Excellent work!`,
           type: 'success',
+        });
+      }
+
+      if (revenueChangePercent > 0 && prevMonthRevenue > 0) {
+        generatedInsights.push({
+          title: 'Revenue Growth',
+          message: `Revenue up ${revenueChangePercent}% compared to last month. Great momentum!`,
+          type: 'success',
+        });
+      } else if (revenueChangePercent < 0 && prevMonthRevenue > 0) {
+        generatedInsights.push({
+          title: 'Revenue Dip',
+          message: `Revenue down ${Math.abs(revenueChangePercent)}% from last month. Time to push bookings!`,
+          type: 'warning',
+        });
+      }
+
+      const upcomingCount = upcomingRes.data?.length || 0;
+      if (upcomingCount > 0) {
+        generatedInsights.push({
+          title: 'Busy Week Ahead',
+          message: `${upcomingCount} event${upcomingCount > 1 ? 's' : ''} coming up this week. Stay prepared!`,
+          type: 'info',
+        });
+      }
+
+      const followUpCount = followUpsRes.data?.length || 0;
+      if (followUpCount > 0) {
+        generatedInsights.push({
+          title: 'Follow-ups Due',
+          message: `${followUpCount} lead follow-up${followUpCount > 1 ? 's' : ''} scheduled this week. Don't miss them!`,
+          type: 'warning',
         });
       }
 
@@ -283,7 +338,7 @@ export default function Dashboard() {
       icon: DollarSign,
       color: 'text-success',
       bgColor: 'bg-success/10',
-      trend: { value: '+12%', positive: true },
+      trend: revenueChange.percent !== 0 ? { value: `${revenueChange.positive ? '+' : ''}${revenueChange.percent}%`, positive: revenueChange.positive } : null,
     },
     {
       title: 'Pending Deliveries',

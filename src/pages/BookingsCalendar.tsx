@@ -52,6 +52,14 @@ interface BookingTask {
   task_type: string;
   status: string;
   scheduled_date: string | null;
+  booking_client_name?: string;
+}
+
+interface LeadFollowUp {
+  id: string;
+  name: string;
+  follow_up_date: string;
+  event_type: string | null;
 }
 
 type ViewMode = 'month' | 'week' | 'day';
@@ -68,6 +76,7 @@ export default function BookingsCalendar() {
   const [loading, setLoading] = useState(true);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [tasks, setTasks] = useState<BookingTask[]>([]);
+  const [leadFollowUps, setLeadFollowUps] = useState<LeadFollowUp[]>([]);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<ViewMode>('month');
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -98,7 +107,7 @@ export default function BookingsCalendar() {
       const startStr = format(startDate, 'yyyy-MM-dd');
       const endStr = format(endDate, 'yyyy-MM-dd');
 
-      const [bookingsRes, tasksRes] = await Promise.all([
+      const [bookingsRes, tasksRes, leadsRes] = await Promise.all([
         supabase
           .from('bookings')
           .select(`id, event_type, event_date, event_time, location, status, client:clients(name)`)
@@ -111,10 +120,24 @@ export default function BookingsCalendar() {
           .gte('scheduled_date', startStr)
           .lte('scheduled_date', endStr)
           .order('scheduled_date', { ascending: true }),
+        supabase
+          .from('leads')
+          .select('id, name, follow_up_date, event_type')
+          .gte('follow_up_date', startStr)
+          .lte('follow_up_date', endStr)
+          .order('follow_up_date', { ascending: true }),
       ]);
 
-      setBookings((bookingsRes.data as Booking[]) || []);
-      setTasks(tasksRes.data || []);
+      const bookingsData = (bookingsRes.data as Booking[]) || [];
+      setBookings(bookingsData);
+      
+      // Enrich tasks with booking client name
+      const tasksData = (tasksRes.data || []).map(t => {
+        const booking = bookingsData.find(b => b.id === t.booking_id);
+        return { ...t, booking_client_name: booking?.client?.name || 'Unknown' };
+      });
+      setTasks(tasksData);
+      setLeadFollowUps((leadsRes.data as LeadFollowUp[]) || []);
     } catch (error) {
       console.error('Error fetching calendar data:', error);
     } finally {
@@ -138,6 +161,7 @@ export default function BookingsCalendar() {
 
   const getBookingsForDate = (date: Date) => bookings.filter((b) => isSameDay(parseISO(b.event_date), date));
   const getTasksForDate = (date: Date) => tasks.filter((t) => t.scheduled_date && isSameDay(parseISO(t.scheduled_date), date));
+  const getLeadFollowUpsForDate = (date: Date) => leadFollowUps.filter((l) => isSameDay(parseISO(l.follow_up_date), date));
 
   const hasConflict = (date: Date) => getBookingsForDate(date).length > 1;
 
@@ -228,10 +252,11 @@ export default function BookingsCalendar() {
                     {dayTasks.slice(0, 5).map((task) => {
                       const typeColor = taskTypeColors[task.task_type] || taskTypeColors.delivery;
                       return (
-                        <div
+                         <div
                           key={task.id}
                           className={cn('h-2 w-2 rounded-full', typeColor.dot, task.status === 'completed' && 'opacity-40')}
-                          title={`${typeColor.label}: ${task.title} (${task.status})`}
+                          title={`${typeColor.label}: ${task.title} [${task.booking_client_name || ''}] (${task.status})`}
+                        />
                         />
                       );
                     })}
