@@ -818,19 +818,30 @@ export default function Bookings() {
         <Dialog open={isTeamModalOpen} onOpenChange={setIsTeamModalOpen}>
           <DialogContent className="max-w-md mx-3">
             <DialogHeader><DialogTitle>Assign Team</DialogTitle></DialogHeader>
-            <div className="space-y-3 max-h-[400px] overflow-y-auto">
-              {getTeamMembersWithStatus().map((member) => (
-                <div key={member.id} className={`flex items-center gap-3 p-2.5 rounded-lg border transition-colors ${
-                  member.hasConflict ? 'border-warning/50 bg-warning/5' : member.isAssigned ? 'border-primary bg-primary/5' : 'border-border hover:bg-accent'
-                }`}>
-                  <Checkbox id={member.id} checked={selectedTeamIds.includes(member.id)} onCheckedChange={() => handleTeamToggle(member.id)} />
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm">{member.name}</p>
-                    <p className="text-xs text-muted-foreground capitalize">{member.member_type.replace(/_/g, ' ')}</p>
+            <div className="space-y-4 max-h-[400px] overflow-y-auto">
+              {/* Group by category */}
+              {['photographer', 'videographer', 'editor', 'drone_operator', 'other'].map(type => {
+                const members = getTeamMembersWithStatus().filter(m => m.member_type === type);
+                if (members.length === 0) return null;
+                return (
+                  <div key={type}>
+                    <p className="text-xs font-semibold uppercase text-muted-foreground mb-2">{type.replace(/_/g, ' ')}</p>
+                    <div className="space-y-2">
+                      {members.map((member) => (
+                        <div key={member.id} className={`flex items-center gap-3 p-2.5 rounded-lg border transition-colors ${
+                          member.hasConflict ? 'border-warning/50 bg-warning/5' : member.isAssigned ? 'border-primary bg-primary/5' : 'border-border hover:bg-accent'
+                        }`}>
+                          <Checkbox id={member.id} checked={selectedTeamIds.includes(member.id)} onCheckedChange={() => handleTeamToggle(member.id)} />
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-sm">{member.name}</p>
+                          </div>
+                          {member.hasConflict && <AlertCircle className="h-4 w-4 text-warning" />}
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  {member.hasConflict && <AlertCircle className="h-4 w-4 text-warning" />}
-                </div>
-              ))}
+                );
+              })}
             </div>
             <div className="flex justify-end gap-3 pt-2">
               <Button variant="outline" onClick={() => setIsTeamModalOpen(false)}>Cancel</Button>
@@ -920,7 +931,51 @@ export default function Bookings() {
     );
   }
 
-  // ========== LIST VIEW ==========
+  // ========== LIST VIEW - GRID WITH CATEGORIES ==========
+  const upcomingBookings = filteredBookings.filter(b => !['delivered', 'shoot_completed'].includes(b.status));
+  const completedBookings = filteredBookings.filter(b => ['delivered', 'shoot_completed'].includes(b.status));
+
+  const renderBookingCard = (booking: Booking) => {
+    const teamCount = getBookingTeamCount(booking.id);
+    return (
+      <div key={booking.id} className="zoho-card p-4 cursor-pointer hover:shadow-zoho-md transition-shadow"
+        onClick={() => {
+          setSelectedBooking(booking);
+          fetchBookingTeam(booking.id);
+          fetchBookingTasks(booking.id);
+          fetchBookingExpenses(booking.id);
+          fetchBookingAddons(booking.id);
+          setShowDetailPage(true);
+        }}>
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="p-2 rounded-lg bg-primary/10 flex-shrink-0">
+              <Calendar className="h-4 w-4 text-primary" />
+            </div>
+            <div className="min-w-0">
+              <p className="font-medium text-foreground truncate">{booking.client?.name || 'Walk-in Client'}</p>
+              <p className="text-xs text-muted-foreground truncate">
+                {eventTypes.find((e) => e.value === booking.event_type)?.label} • {format(new Date(booking.event_date), 'MMM dd, yyyy')}
+              </p>
+            </div>
+          </div>
+          <StatusBadge status={booking.status} />
+        </div>
+        <div className="flex items-center justify-between mt-2">
+          <div className="flex items-center gap-2">
+            {teamCount > 0 && <span className="text-xs text-muted-foreground flex items-center gap-1"><Users className="h-3 w-3" />{teamCount}</span>}
+            {booking.album_delivered && <span className="text-xs text-success">📦</span>}
+            {booking.final_payment_received && <span className="text-xs text-success">💰</span>}
+          </div>
+          <div className="text-right">
+            <p className="text-sm font-medium">₹{Number(booking.total_amount).toLocaleString()}</p>
+            {Number(booking.balance_amount) > 0 && <p className="text-xs text-warning">Bal: ₹{Number(booking.balance_amount).toLocaleString()}</p>}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <MainLayout title="Bookings" subtitle="Manage your event bookings">
       <div className="flex flex-col gap-3 mb-6">
@@ -950,55 +1005,27 @@ export default function Bookings() {
         <EmptyState icon={Calendar} title="No bookings found" description={searchQuery || statusFilter !== 'all' ? 'Try adjusting your filters' : 'Create your first booking'}
           action={!searchQuery && statusFilter === 'all' ? { label: 'Add Booking', onClick: () => setIsFormOpen(true) } : undefined} />
       ) : (
-        <div className="space-y-3">
-          {filteredBookings.map((booking) => {
-            const teamCount = getBookingTeamCount(booking.id);
-            return (
-              <div key={booking.id} className="zoho-card p-3 sm:p-4 cursor-pointer hover:shadow-zoho-md transition-shadow"
-                onClick={() => {
-                  setSelectedBooking(booking);
-                  fetchBookingTeam(booking.id);
-                  fetchBookingTasks(booking.id);
-                  fetchBookingExpenses(booking.id);
-                  fetchBookingAddons(booking.id);
-                  setShowDetailPage(true);
-                }}>
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="flex items-center gap-3 sm:gap-4">
-                    <div className="p-2 sm:p-2.5 rounded-lg bg-primary/10 flex-shrink-0">
-                      <Calendar className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="font-medium text-foreground truncate">{booking.client?.name || 'Walk-in Client'}</p>
-                      <p className="text-xs sm:text-sm text-muted-foreground truncate">
-                        {eventTypes.find((e) => e.value === booking.event_type)?.label} • {format(new Date(booking.event_date), 'MMM dd, yyyy')}
-                        {booking.location && <span className="hidden sm:inline"> • {booking.location}</span>}
-                      </p>
-                      <div className="flex items-center gap-2 mt-1">
-                        {teamCount > 0 && (
-                          <div className="flex items-center gap-1">
-                            <Users className="h-3 w-3 text-muted-foreground" />
-                            <span className="text-xs text-muted-foreground">{teamCount}</span>
-                          </div>
-                        )}
-                        {booking.album_delivered && <span className="text-xs text-success">📦 Delivered</span>}
-                        {booking.final_payment_received && <span className="text-xs text-success">💰 Paid</span>}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-4">
-                    <div className="text-left sm:text-right">
-                      <p className="font-medium text-foreground">Rs. {Number(booking.total_amount).toLocaleString()}</p>
-                      {Number(booking.balance_amount) > 0 && (
-                        <p className="text-xs text-muted-foreground">Bal: Rs. {Number(booking.balance_amount).toLocaleString()}</p>
-                      )}
-                    </div>
-                    <StatusBadge status={booking.status} />
-                  </div>
-                </div>
+        <div className="space-y-6">
+          {upcomingBookings.length > 0 && (
+            <div>
+              <h3 className="text-sm font-medium text-muted-foreground mb-3 flex items-center gap-2">
+                <Clock className="h-4 w-4" /> Upcoming & Active ({upcomingBookings.length})
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {upcomingBookings.map(renderBookingCard)}
               </div>
-            );
-          })}
+            </div>
+          )}
+          {completedBookings.length > 0 && (
+            <div>
+              <h3 className="text-sm font-medium text-muted-foreground mb-3 flex items-center gap-2">
+                <CheckCircle className="h-4 w-4" /> Completed & Delivered ({completedBookings.length})
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {completedBookings.map(renderBookingCard)}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

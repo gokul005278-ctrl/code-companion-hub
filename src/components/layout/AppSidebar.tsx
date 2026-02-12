@@ -27,6 +27,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { useSidebarCollapse } from '@/hooks/useSidebarCollapse';
+import { useRef, useEffect } from 'react';
 
 interface NavItem {
   title: string;
@@ -59,6 +60,22 @@ export function AppSidebar() {
   const { collapsed, setCollapsed } = useSidebarCollapse();
   const location = useLocation();
   const { signOut, user } = useAuth();
+  const navRef = useRef<HTMLElement>(null);
+  const scrollPosRef = useRef(0);
+
+  // Save scroll position before navigation
+  useEffect(() => {
+    const nav = navRef.current;
+    if (!nav) return;
+    // Restore saved position after route change
+    nav.scrollTop = scrollPosRef.current;
+  }, [location.pathname]);
+
+  const handleNavClick = () => {
+    if (navRef.current) {
+      scrollPosRef.current = navRef.current.scrollTop;
+    }
+  };
 
   const NavItemComponent = ({ item }: { item: NavItem }) => {
     const isActive = location.pathname === item.href;
@@ -67,6 +84,7 @@ export function AppSidebar() {
     const linkContent = (
       <NavLink
         to={item.href}
+        onClick={handleNavClick}
         className={cn(
           'flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200',
           'hover:bg-sidebar-accent text-sidebar-foreground',
@@ -124,7 +142,7 @@ export function AppSidebar() {
       </div>
 
       {/* Main Navigation */}
-      <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
+      <nav ref={navRef} className="flex-1 p-3 space-y-1 overflow-y-auto">
         <div className="space-y-1">
           {mainNavItems.map((item) => (
             <NavItemComponent key={item.href} item={item} />
