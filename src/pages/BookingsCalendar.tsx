@@ -257,7 +257,6 @@ export default function BookingsCalendar() {
                           className={cn('h-2 w-2 rounded-full', typeColor.dot, task.status === 'completed' && 'opacity-40')}
                           title={`${typeColor.label}: ${task.title} [${task.booking_client_name || ''}] (${task.status})`}
                         />
-                        />
                       );
                     })}
                     {dayTasks.length > 5 && (
