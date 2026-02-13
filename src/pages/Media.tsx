@@ -93,6 +93,7 @@ export default function Media() {
   const [folderName, setFolderName] = useState('');
   const [folderType, setFolderType] = useState('general');
   const [selectedBooking, setSelectedBooking] = useState('');
+  const [fileListView, setFileListView] = useState<'selected' | 'unselected' | null>(null);
   const { user } = useAuth();
 
   useEffect(() => {
@@ -497,9 +498,36 @@ export default function Media() {
           {/* Files */}
           {filteredFiles.length > 0 && (
             <div>
-              <h3 className="text-sm font-medium text-muted-foreground mb-3">
-                Files ({filteredFiles.length})
-              </h3>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-medium text-muted-foreground">
+                  Files ({filteredFiles.length})
+                </h3>
+                {filteredFiles.some(f => f.is_selected !== null) && (
+                  <div className="flex gap-2">
+                    <button onClick={() => setFileListView(fileListView === 'selected' ? null : 'selected')}
+                      className={cn('text-xs px-2 py-1 rounded border transition-colors', fileListView === 'selected' ? 'bg-success/10 text-success border-success/30' : 'border-border text-muted-foreground hover:bg-muted')}>
+                      ✓ Selected ({filteredFiles.filter(f => f.is_selected).length})
+                    </button>
+                    <button onClick={() => setFileListView(fileListView === 'unselected' ? null : 'unselected')}
+                      className={cn('text-xs px-2 py-1 rounded border transition-colors', fileListView === 'unselected' ? 'bg-warning/10 text-warning border-warning/30' : 'border-border text-muted-foreground hover:bg-muted')}>
+                      ○ Not Selected ({filteredFiles.filter(f => !f.is_selected).length})
+                    </button>
+                  </div>
+                )}
+              </div>
+              {fileListView && (
+                <div className="zoho-card p-3 mb-4 max-h-48 overflow-auto">
+                  <p className="text-xs font-medium text-muted-foreground mb-2">{fileListView === 'selected' ? 'Selected Files' : 'Not Selected Files'}</p>
+                  <div className="space-y-1">
+                    {filteredFiles.filter(f => fileListView === 'selected' ? f.is_selected : !f.is_selected).map(f => (
+                      <p key={f.id} className="text-xs text-foreground truncate">• {f.file_name}</p>
+                    ))}
+                    {filteredFiles.filter(f => fileListView === 'selected' ? f.is_selected : !f.is_selected).length === 0 && (
+                      <p className="text-xs text-muted-foreground">No files</p>
+                    )}
+                  </div>
+                </div>
+              )}
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                 {filteredFiles.map((file, index) => {
                   const FileIcon = getFileIcon(file.file_type);

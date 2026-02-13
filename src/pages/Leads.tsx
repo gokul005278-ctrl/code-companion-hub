@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { ShimmerList } from '@/components/ui/ShimmerLoader';
-import { StatusBadge } from '@/components/ui/StatusBadge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { DetailModal } from '@/components/ui/DetailModal';
 import { Button } from '@/components/ui/button';
@@ -19,6 +18,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { Target, Plus, Search, Mail, Phone, Loader2, UserPlus, Calendar, MapPin, Filter } from 'lucide-react';
 import { format } from 'date-fns';
+import { cn } from '@/lib/utils';
 
 interface Lead {
   id: string; name: string; email: string | null; phone: string | null;
@@ -44,6 +44,19 @@ const eventTypes = [
   { value: 'birthday', label: 'Birthday' }, { value: 'corporate', label: 'Corporate' },
   { value: 'reel', label: 'Reel' }, { value: 'other', label: 'Other' },
 ];
+
+const getStatusColor = (status: string) => {
+  const colors: Record<string, string> = {
+    new: 'bg-blue-500/15 text-blue-600 border-blue-500/30',
+    contacted: 'bg-cyan-500/15 text-cyan-600 border-cyan-500/30',
+    qualified: 'bg-emerald-500/15 text-emerald-600 border-emerald-500/30',
+    proposal_sent: 'bg-violet-500/15 text-violet-600 border-violet-500/30',
+    negotiation: 'bg-amber-500/15 text-amber-600 border-amber-500/30',
+    won: 'bg-green-500/15 text-green-600 border-green-500/30',
+    lost: 'bg-red-500/15 text-red-600 border-red-500/30',
+  };
+  return colors[status] || 'bg-muted text-muted-foreground';
+};
 
 export default function Leads() {
   const [loading, setLoading] = useState(true);
@@ -180,7 +193,6 @@ export default function Leads() {
         <EmptyState icon={Target} title="No leads found" description={searchQuery || statusFilter !== 'all' ? 'Try adjusting your filters' : 'Add your first lead'}
           action={!searchQuery && statusFilter === 'all' ? { label: 'Add Lead', onClick: () => setIsFormOpen(true) } : undefined} />
       ) : (
-        /* Grid layout like clients page */
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredLeads.map((lead) => (
             <div key={lead.id} className="zoho-card p-4 cursor-pointer hover:shadow-zoho-md transition-shadow"
@@ -192,7 +204,9 @@ export default function Leads() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <p className="font-medium text-foreground truncate">{lead.name}</p>
-                    <StatusBadge status={lead.status} />
+                    <span className={cn('text-xs px-2 py-0.5 rounded-full border font-medium', getStatusColor(lead.status))}>
+                      {leadStatuses.find(s => s.value === lead.status)?.label || lead.status}
+                    </span>
                   </div>
                   <div className="space-y-0.5 text-xs text-muted-foreground">
                     {lead.email && <p className="flex items-center gap-1 truncate"><Mail className="h-3 w-3" />{lead.email}</p>}
@@ -222,8 +236,10 @@ export default function Leads() {
       <DetailModal open={isDetailOpen} onOpenChange={setIsDetailOpen} title={selectedLead?.name || 'Lead'} description={selectedLead?.source ? `Source: ${leadSources.find(s => s.value === selectedLead.source)?.label}` : undefined} onEdit={handleEdit} onDelete={handleDelete} isDeleting={isDeleting}>
         {selectedLead && (
           <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <StatusBadge status={selectedLead.status} />
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className={cn('text-xs px-2.5 py-1 rounded-full border font-medium', getStatusColor(selectedLead.status))}>
+                {leadStatuses.find(s => s.value === selectedLead.status)?.label || selectedLead.status}
+              </span>
               {selectedLead.priority && <span className={`text-xs px-2 py-1 rounded ${selectedLead.priority === 'high' ? 'bg-destructive/10 text-destructive' : selectedLead.priority === 'medium' ? 'bg-warning/10 text-warning' : 'bg-muted text-muted-foreground'}`}>{priorities.find(p => p.value === selectedLead.priority)?.label} Priority</span>}
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -235,6 +251,12 @@ export default function Leads() {
               <div><p className="text-sm text-muted-foreground">Location</p><p className="font-medium">{selectedLead.location || '-'}</p></div>
             </div>
             {selectedLead.message && <div><p className="text-sm text-muted-foreground">Message</p><p className="text-sm">{selectedLead.message}</p></div>}
+            {selectedLead.notes && (
+              <div className="p-3 rounded-lg bg-muted/50 border border-border">
+                <p className="text-sm text-muted-foreground font-medium mb-1">Notes</p>
+                <p className="text-sm whitespace-pre-wrap">{selectedLead.notes}</p>
+              </div>
+            )}
             {selectedLead.follow_up_date && <div className="p-3 bg-warning/10 rounded-lg"><p className="text-sm font-medium text-warning flex items-center gap-2"><Calendar className="h-4 w-4" />Follow-up: {format(new Date(selectedLead.follow_up_date), 'MMMM dd, yyyy')}</p></div>}
             {!selectedLead.converted_client_id && selectedLead.status !== 'lost' && (
               <Button onClick={convertToClient} disabled={isConverting} className="w-full btn-fade">

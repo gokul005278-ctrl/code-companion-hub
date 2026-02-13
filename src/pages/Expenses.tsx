@@ -24,7 +24,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { FileText, Plus, Search, Filter, Loader2, Calendar, IndianRupee } from 'lucide-react';
-import { format, startOfMonth, endOfMonth } from 'date-fns';
+import { format, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear } from 'date-fns';
 
 interface Expense {
   id: string;
@@ -63,12 +63,24 @@ const paymentMethods = [
   { value: 'cheque', label: 'Cheque' },
 ];
 
+const dateFilters = [
+  { value: 'all', label: 'All Time' },
+  { value: 'this_month', label: 'This Month' },
+  { value: 'last_month', label: 'Last Month' },
+  { value: 'last_3_months', label: 'Last 3 Months' },
+  { value: 'this_year', label: 'This Year' },
+  { value: 'custom', label: 'Custom Range' },
+];
+
 export default function Expenses() {
   const [loading, setLoading] = useState(true);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [bookings, setBookings] = useState<{ id: string; event_type: string; client_name: string }[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [dateFilter, setDateFilter] = useState<string>('all');
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
@@ -215,12 +227,34 @@ export default function Expenses() {
     }
   };
 
+  const getDateRange = () => {
+    const now = new Date();
+    switch (dateFilter) {
+      case 'this_month': return { start: startOfMonth(now), end: endOfMonth(now) };
+      case 'last_month': return { start: startOfMonth(subMonths(now, 1)), end: endOfMonth(subMonths(now, 1)) };
+      case 'last_3_months': return { start: startOfMonth(subMonths(now, 2)), end: endOfMonth(now) };
+      case 'this_year': return { start: startOfYear(now), end: endOfYear(now) };
+      case 'custom':
+        return customStartDate && customEndDate
+          ? { start: new Date(customStartDate), end: new Date(customEndDate) }
+          : null;
+      default: return null;
+    }
+  };
+
   const filteredExpenses = expenses.filter((expense) => {
     const matchesSearch =
       expense.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
       expense.vendor?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = categoryFilter === 'all' || expense.category === categoryFilter;
-    return matchesSearch && matchesCategory;
+
+    const dateRange = getDateRange();
+    const matchesDate = !dateRange || (
+      new Date(expense.expense_date) >= dateRange.start &&
+      new Date(expense.expense_date) <= dateRange.end
+    );
+
+    return matchesSearch && matchesCategory && matchesDate;
   });
 
   const totalExpenses = filteredExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
@@ -289,50 +323,70 @@ export default function Expenses() {
               ))}
             </SelectContent>
           </Select>
+          <Select value={dateFilter} onValueChange={setDateFilter}>
+            <SelectTrigger className="w-full sm:w-40">
+              <Calendar className="h-4 w-4 mr-2" />
+              <SelectValue placeholder="Date Range" />
+            </SelectTrigger>
+            <SelectContent>
+              {dateFilters.map((df) => (
+                <SelectItem key={df.value} value={df.value}>
+                  {df.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Button onClick={() => { resetForm(); setEditMode(false); setIsFormOpen(true); }} className="btn-fade">
             <Plus className="h-4 w-4 mr-2" />
             Add Expense
           </Button>
         </div>
+        {dateFilter === 'custom' && (
+          <div className="flex gap-3">
+            <Input type="date" value={customStartDate} onChange={(e) => setCustomStartDate(e.target.value)} className="w-40" />
+            <span className="text-muted-foreground self-center">to</span>
+            <Input type="date" value={customEndDate} onChange={(e) => setCustomEndDate(e.target.value)} className="w-40" />
+          </div>
+        )}
       </div>
 
-      {/* Content */}
+      {/* Content - Grid View */}
       {loading ? (
         <ShimmerList count={5} />
       ) : filteredExpenses.length === 0 ? (
         <EmptyState
           icon={FileText}
           title="No expenses found"
-          description={searchQuery || categoryFilter !== 'all' ? 'Try adjusting your filters' : 'Add your first expense'}
+          description={searchQuery || categoryFilter !== 'all' || dateFilter !== 'all' ? 'Try adjusting your filters' : 'Add your first expense'}
           action={!searchQuery && categoryFilter === 'all' ? { label: 'Add Expense', onClick: () => setIsFormOpen(true) } : undefined}
         />
       ) : (
-        <div className="space-y-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredExpenses.map((expense) => (
             <div
               key={expense.id}
-              className="zoho-card p-3 sm:p-4 cursor-pointer hover:shadow-zoho-md transition-shadow"
+              className="zoho-card p-4 cursor-pointer hover:shadow-zoho-md transition-shadow"
               onClick={() => { setSelectedExpense(expense); setIsDetailOpen(true); }}
             >
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3 min-w-0 flex-1">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-3 min-w-0 flex-1">
                   <div className={`p-2 rounded-lg flex-shrink-0 ${getCategoryColor(expense.category)}`}>
                     <FileText className="h-4 w-4 sm:h-5 sm:w-5" />
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="font-medium text-foreground truncate">{expense.description}</p>
-                    <p className="text-xs sm:text-sm text-muted-foreground">
+                    <p className="text-xs text-muted-foreground">
                       {expenseCategories.find(c => c.value === expense.category)?.label}
                       {expense.vendor && ` • ${expense.vendor}`}
                     </p>
                   </div>
                 </div>
-                <div className="text-right flex-shrink-0">
-                  <p className="font-semibold text-foreground">Rs. {Number(expense.amount).toLocaleString()}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {format(new Date(expense.expense_date), 'MMM dd')}
-                  </p>
-                </div>
+              </div>
+              <div className="flex items-center justify-between mt-3">
+                <p className="text-xs text-muted-foreground">
+                  {format(new Date(expense.expense_date), 'MMM dd, yyyy')}
+                </p>
+                <p className="font-semibold text-foreground">Rs. {Number(expense.amount).toLocaleString()}</p>
               </div>
             </div>
           ))}

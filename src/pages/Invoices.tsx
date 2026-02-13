@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { ShimmerList } from '@/components/ui/ShimmerLoader';
 import { StatusBadge } from '@/components/ui/StatusBadge';
@@ -35,6 +35,7 @@ import {
   Calendar,
   Mail,
   Printer,
+  AlertCircle,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
@@ -47,6 +48,7 @@ interface Payment {
   payment_type: string;
   payment_method: string | null;
   notes: string | null;
+  booking_id: string;
   booking: {
     id: string;
     event_type: string;
@@ -80,6 +82,7 @@ export default function Invoices() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
+  const [bookingFilter, setBookingFilter] = useState('all');
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isInvoiceDialogOpen, setIsInvoiceDialogOpen] = useState(false);
@@ -144,9 +147,36 @@ export default function Invoices() {
     }
   };
 
+  // Calculate booking summary when a booking is selected in form or filter
+  const getBookingSummary = (bookingId: string) => {
+    const booking = bookings.find(b => b.id === bookingId);
+    if (!booking) return null;
+    const bookingPayments = payments.filter(p => p.booking_id === bookingId);
+    const totalPaid = bookingPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+    const totalAmount = Number(booking.total_amount || 0);
+    const pendingAmount = Math.max(0, totalAmount - totalPaid);
+    return { booking, totalPaid, totalAmount, pendingAmount, paymentsCount: bookingPayments.length };
+  };
+
+  const selectedBookingSummary = useMemo(() => {
+    if (formData.booking_id) return getBookingSummary(formData.booking_id);
+    return null;
+  }, [formData.booking_id, payments, bookings]);
+
+  const filterBookingSummary = useMemo(() => {
+    if (bookingFilter !== 'all') return getBookingSummary(bookingFilter);
+    return null;
+  }, [bookingFilter, payments, bookings]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
+
+    // Validate against pending amount
+    if (selectedBookingSummary && formData.amount > selectedBookingSummary.pendingAmount) {
+      toast.error(`Amount cannot exceed pending amount of Rs. ${selectedBookingSummary.pendingAmount.toLocaleString()}`);
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -169,8 +199,7 @@ export default function Invoices() {
           .select('amount')
           .eq('booking_id', formData.booking_id);
 
-        const totalPaid =
-          (existingPayments?.reduce((sum, p) => sum + Number(p.amount), 0) || 0) + formData.amount;
+        const totalPaid = (existingPayments?.reduce((sum, p) => sum + Number(p.amount), 0) || 0);
         const balance = (Number(booking.total_amount) || 0) - totalPaid;
 
         await supabase
@@ -209,12 +238,36 @@ export default function Invoices() {
 
     setIsDeleting(true);
     try {
+      const bookingId = selectedPayment.booking_id;
+
       const { error } = await supabase
         .from('payments')
         .delete()
         .eq('id', selectedPayment.id);
 
       if (error) throw error;
+
+      // Recalculate booking amounts after delete
+      const booking = bookings.find(b => b.id === bookingId);
+      if (booking) {
+        const { data: remainingPayments } = await supabase
+          .from('payments')
+          .select('amount')
+          .eq('booking_id', bookingId);
+
+        const totalPaid = remainingPayments?.reduce((sum, p) => sum + Number(p.amount), 0) || 0;
+        const balance = Math.max(0, (Number(booking.total_amount) || 0) - totalPaid);
+
+        await supabase
+          .from('bookings')
+          .update({
+            advance_amount: totalPaid,
+            balance_amount: balance,
+            payment_status: balance <= 0 && totalPaid > 0 ? 'paid' : totalPaid > 0 ? 'partial' : 'pending',
+          })
+          .eq('id', bookingId);
+      }
+
       toast.success('Payment deleted successfully');
       setIsDetailOpen(false);
       fetchData();
@@ -227,41 +280,37 @@ export default function Invoices() {
 
   const generateInvoicePDF = (payment: Payment) => {
     setIsGenerating(true);
-    
+
     try {
       const doc = new jsPDF();
       const booking = payment.booking;
-      
-      // Header
+
       doc.setFontSize(24);
       doc.setFont('helvetica', 'bold');
       doc.text(profile?.studio_name || 'Photography Studio', 20, 25);
-      
+
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
       if (profile?.phone) {
         doc.text(`Phone: ${profile.phone}`, 20, 32);
       }
-      
-      // Invoice Title
+
       doc.setFontSize(18);
       doc.setFont('helvetica', 'bold');
       doc.text('INVOICE', 150, 25);
-      
+
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
       doc.text(`Invoice No: ${invoiceSettings.invoiceNumber || `INV-${Date.now().toString().slice(-8)}`}`, 150, 32);
       doc.text(`Date: ${format(new Date(invoiceSettings.invoiceDate), 'dd MMM yyyy')}`, 150, 38);
-      
-      // Divider
+
       doc.setDrawColor(200, 200, 200);
       doc.line(20, 45, 190, 45);
-      
-      // Bill To
+
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
       doc.text('Bill To:', 20, 55);
-      
+
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
       doc.text(booking?.client?.name || 'Client', 20, 62);
@@ -271,31 +320,29 @@ export default function Invoices() {
       if (booking?.client?.email) {
         doc.text(`Email: ${booking.client.email}`, 20, 74);
       }
-      
-      // Event Details
+
       doc.setFont('helvetica', 'bold');
       doc.text('Event Details:', 120, 55);
-      
+
       doc.setFont('helvetica', 'normal');
       doc.text(`Type: ${booking?.event_type?.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())}`, 120, 62);
       doc.text(`Date: ${booking?.event_date ? format(new Date(booking.event_date), 'dd MMM yyyy') : '-'}`, 120, 68);
       if (booking?.location) {
         doc.text(`Location: ${booking.location}`, 120, 74);
       }
-      
-      // Items Table
+
       const subtotal = Number(booking?.total_amount || 0);
       const gstAmount = invoiceSettings.includeGST ? (subtotal * invoiceSettings.gstRate) / 100 : 0;
       const grandTotal = subtotal + gstAmount;
-      
+
       const tableData = [
         ['Photography Services', '1', `Rs. ${subtotal.toLocaleString()}`, `Rs. ${subtotal.toLocaleString()}`],
       ];
-      
+
       if (invoiceSettings.includeGST) {
         tableData.push([`GST (${invoiceSettings.gstRate}%)`, '', '', `Rs. ${gstAmount.toLocaleString()}`]);
       }
-      
+
       autoTable(doc, {
         startY: 85,
         head: [['Description', 'Qty', 'Rate', 'Amount']],
@@ -317,28 +364,29 @@ export default function Invoices() {
           3: { cellWidth: 40, halign: 'right' },
         },
       });
-      
-      // Totals
+
       const finalY = (doc as any).lastAutoTable.finalY + 10;
-      
+
+      // Recalculate paid/balance from actual payments
+      const bookingPayments = payments.filter(p => p.booking_id === booking?.id);
+      const totalPaid = bookingPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+      const balanceDue = Math.max(0, grandTotal - totalPaid);
+
       doc.setFont('helvetica', 'bold');
       doc.text('Grand Total:', 130, finalY);
       doc.setFontSize(14);
       doc.text(`Rs. ${grandTotal.toLocaleString()}`, 165, finalY);
-      
-      // Payment Info
+
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
-      doc.text(`Amount Paid: Rs. ${Number(booking?.advance_amount || 0).toLocaleString()}`, 20, finalY + 15);
-      doc.text(`Balance Due: Rs. ${Number(booking?.balance_amount || 0).toLocaleString()}`, 20, finalY + 22);
-      
-      // Footer
+      doc.text(`Amount Paid: Rs. ${totalPaid.toLocaleString()}`, 20, finalY + 15);
+      doc.text(`Balance Due: Rs. ${balanceDue.toLocaleString()}`, 20, finalY + 22);
+
       doc.setFontSize(8);
       doc.setTextColor(128, 128, 128);
       doc.text('Thank you for your business!', 105, 270, { align: 'center' });
       doc.text('This is a computer-generated invoice.', 105, 275, { align: 'center' });
-      
-      // Save
+
       doc.save(`Invoice-${booking?.client?.name || 'Client'}-${format(new Date(), 'yyyyMMdd')}.pdf`);
       toast.success('Invoice downloaded successfully');
     } catch (error) {
@@ -366,7 +414,8 @@ export default function Invoices() {
       payment.booking?.client?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       payment.notes?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesType = typeFilter === 'all' || payment.payment_type === typeFilter;
-    return matchesSearch && matchesType;
+    const matchesBooking = bookingFilter === 'all' || payment.booking_id === bookingFilter;
+    return matchesSearch && matchesType && matchesBooking;
   });
 
   const paymentTypes = [
@@ -384,7 +433,6 @@ export default function Invoices() {
     { value: 'cheque', label: 'Cheque' },
   ];
 
-  // Calculate totals
   const totalReceived = payments.reduce((sum, p) => sum + Number(p.amount), 0);
   const thisMonthPayments = payments.filter((p) => {
     const paymentDate = new Date(p.payment_date);
@@ -439,6 +487,19 @@ export default function Invoices() {
         </div>
       </div>
 
+      {/* Booking Summary when filtered */}
+      {filterBookingSummary && (
+        <div className="zoho-card p-4 mb-6 border-l-4 border-primary">
+          <p className="text-sm font-semibold mb-2">Booking Summary: {filterBookingSummary.booking.client?.name || 'Unknown'}</p>
+          <div className="grid grid-cols-4 gap-4 text-sm">
+            <div><p className="text-muted-foreground">Total</p><p className="font-bold">Rs. {filterBookingSummary.totalAmount.toLocaleString()}</p></div>
+            <div><p className="text-muted-foreground">Paid</p><p className="font-bold text-success">Rs. {filterBookingSummary.totalPaid.toLocaleString()}</p></div>
+            <div><p className="text-muted-foreground">Pending</p><p className="font-bold text-warning">Rs. {filterBookingSummary.pendingAmount.toLocaleString()}</p></div>
+            <div><p className="text-muted-foreground">Payments</p><p className="font-bold">{filterBookingSummary.paymentsCount}</p></div>
+          </div>
+        </div>
+      )}
+
       {/* Toolbar */}
       <div className="flex flex-col sm:flex-row gap-4 mb-6">
         <div className="relative flex-1">
@@ -450,6 +511,19 @@ export default function Invoices() {
             className="pl-9"
           />
         </div>
+        <Select value={bookingFilter} onValueChange={setBookingFilter}>
+          <SelectTrigger className="w-full sm:w-52">
+            <SelectValue placeholder="All Bookings" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Bookings</SelectItem>
+            {bookings.map((booking) => (
+              <SelectItem key={booking.id} value={booking.id}>
+                {booking.client?.name || 'Unknown'} - {format(new Date(booking.event_date), 'MMM dd')}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <Select value={typeFilter} onValueChange={setTypeFilter}>
           <SelectTrigger className="w-full sm:w-40">
             <Filter className="h-4 w-4 mr-2" />
@@ -478,7 +552,7 @@ export default function Invoices() {
           icon={FileText}
           title="No payments found"
           description={
-            searchQuery || typeFilter !== 'all'
+            searchQuery || typeFilter !== 'all' || bookingFilter !== 'all'
               ? 'Try adjusting your filters'
               : 'Record your first payment to get started'
           }
@@ -547,77 +621,78 @@ export default function Invoices() {
         onDelete={handleDelete}
         isDeleting={isDeleting}
       >
-        {selectedPayment && (
-          <div className="space-y-6">
-            <div className="text-center py-4 border-b border-border">
-              <p className="text-4xl font-bold text-success">
-                Rs. {Number(selectedPayment.amount).toLocaleString()}
-              </p>
-              <p className="text-muted-foreground mt-1 capitalize">
-                {selectedPayment.payment_type} Payment
-              </p>
-            </div>
+        {selectedPayment && (() => {
+          const summary = getBookingSummary(selectedPayment.booking_id);
+          return (
+            <div className="space-y-6">
+              <div className="text-center py-4 border-b border-border">
+                <p className="text-4xl font-bold text-success">
+                  Rs. {Number(selectedPayment.amount).toLocaleString()}
+                </p>
+                <p className="text-muted-foreground mt-1 capitalize">
+                  {selectedPayment.payment_type} Payment
+                </p>
+              </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm text-muted-foreground">Client</p>
-                <p className="font-medium">
-                  {selectedPayment.booking?.client?.name || 'Unknown'}
-                </p>
+              {/* Booking Payment Summary */}
+              {summary && (
+                <div className="p-3 rounded-lg bg-muted/50 border border-border">
+                  <p className="text-xs font-medium text-muted-foreground mb-2">Booking Payment Summary</p>
+                  <div className="grid grid-cols-3 gap-3 text-sm">
+                    <div><p className="text-muted-foreground">Total</p><p className="font-bold">Rs. {summary.totalAmount.toLocaleString()}</p></div>
+                    <div><p className="text-muted-foreground">Paid</p><p className="font-bold text-success">Rs. {summary.totalPaid.toLocaleString()}</p></div>
+                    <div><p className="text-muted-foreground">Pending</p><p className="font-bold text-warning">Rs. {summary.pendingAmount.toLocaleString()}</p></div>
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-muted-foreground">Client</p>
+                  <p className="font-medium">
+                    {selectedPayment.booking?.client?.name || 'Unknown'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Payment Date</p>
+                  <p className="font-medium">
+                    {format(new Date(selectedPayment.payment_date), 'MMMM dd, yyyy')}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Payment Method</p>
+                  <p className="font-medium capitalize">
+                    {selectedPayment.payment_method?.replace(/_/g, ' ') || '-'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Event Type</p>
+                  <p className="font-medium capitalize">
+                    {selectedPayment.booking?.event_type?.replace(/_/g, ' ') || '-'}
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Payment Date</p>
-                <p className="font-medium">
-                  {format(new Date(selectedPayment.payment_date), 'MMMM dd, yyyy')}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Payment Method</p>
-                <p className="font-medium capitalize">
-                  {selectedPayment.payment_method?.replace(/_/g, ' ') || '-'}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Event Date</p>
-                <p className="font-medium">
-                  {selectedPayment.booking?.event_date
-                    ? format(new Date(selectedPayment.booking.event_date), 'MMMM dd, yyyy')
-                    : '-'}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Event Type</p>
-                <p className="font-medium capitalize">
-                  {selectedPayment.booking?.event_type?.replace(/_/g, ' ') || '-'}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Booking Total</p>
-                <p className="font-medium">
-                  Rs. {Number(selectedPayment.booking?.total_amount || 0).toLocaleString()}
-                </p>
+
+              {selectedPayment.notes && (
+                <div>
+                  <p className="text-sm text-muted-foreground">Notes</p>
+                  <p className="text-sm">{selectedPayment.notes}</p>
+                </div>
+              )}
+
+              <div className="flex gap-3">
+                <Button
+                  className="flex-1 btn-fade"
+                  variant="outline"
+                  onClick={() => openInvoiceDialog(selectedPayment)}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Generate Invoice
+                </Button>
               </div>
             </div>
-
-            {selectedPayment.notes && (
-              <div>
-                <p className="text-sm text-muted-foreground">Notes</p>
-                <p className="text-sm">{selectedPayment.notes}</p>
-              </div>
-            )}
-
-            <div className="flex gap-3">
-              <Button
-                className="flex-1 btn-fade"
-                variant="outline"
-                onClick={() => openInvoiceDialog(selectedPayment)}
-              >
-                <Download className="h-4 w-4 mr-2" />
-                Generate Invoice
-              </Button>
-            </div>
-          </div>
-        )}
+          );
+        })()}
       </DetailModal>
 
       {/* Invoice Generation Dialog */}
@@ -722,7 +797,7 @@ export default function Invoices() {
               <Label>Booking *</Label>
               <Select
                 value={formData.booking_id}
-                onValueChange={(v) => setFormData({ ...formData, booking_id: v })}
+                onValueChange={(v) => setFormData({ ...formData, booking_id: v, amount: 0 })}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select booking" />
@@ -738,6 +813,22 @@ export default function Invoices() {
               </Select>
             </div>
 
+            {/* Booking summary when selected */}
+            {selectedBookingSummary && (
+              <div className="p-3 rounded-lg bg-muted/50 border border-border text-sm">
+                <div className="grid grid-cols-3 gap-2">
+                  <div><p className="text-xs text-muted-foreground">Total</p><p className="font-bold">Rs. {selectedBookingSummary.totalAmount.toLocaleString()}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Paid</p><p className="font-bold text-success">Rs. {selectedBookingSummary.totalPaid.toLocaleString()}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Pending</p><p className="font-bold text-warning">Rs. {selectedBookingSummary.pendingAmount.toLocaleString()}</p></div>
+                </div>
+                {selectedBookingSummary.pendingAmount <= 0 && (
+                  <div className="flex items-center gap-1 mt-2 text-xs text-destructive">
+                    <AlertCircle className="h-3 w-3" /> Fully paid – no pending amount
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label>Amount (Rs.) *</Label>
               <Input
@@ -745,8 +836,12 @@ export default function Invoices() {
                 value={formData.amount}
                 onChange={(e) => setFormData({ ...formData, amount: Number(e.target.value) })}
                 min={0}
+                max={selectedBookingSummary?.pendingAmount || undefined}
                 required
               />
+              {selectedBookingSummary && selectedBookingSummary.pendingAmount > 0 && (
+                <p className="text-xs text-muted-foreground">Max: Rs. {selectedBookingSummary.pendingAmount.toLocaleString()}</p>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -802,7 +897,7 @@ export default function Invoices() {
               <Button type="button" variant="outline" onClick={() => setIsFormOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={isSubmitting || !formData.booking_id} className="btn-fade">
+              <Button type="submit" disabled={isSubmitting || !formData.booking_id || (selectedBookingSummary ? selectedBookingSummary.pendingAmount <= 0 : false)} className="btn-fade">
                 {isSubmitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 Record Payment
               </Button>
