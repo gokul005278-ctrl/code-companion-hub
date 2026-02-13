@@ -15,6 +15,9 @@ import { User, Building, Bell, Shield, Loader2, Save, Camera, Code, LogOut } fro
 interface Profile {
   id: string; user_id: string; full_name: string | null;
   studio_name: string | null; phone: string | null; avatar_url: string | null;
+  business_address: string | null; city: string | null; state: string | null;
+  pincode: string | null; pan_number: string | null; gstin: string | null;
+  sac_code: string | null;
 }
 
 export default function Settings() {
@@ -26,6 +29,9 @@ export default function Settings() {
   const { user, signOut } = useAuth();
 
   const [profileData, setProfileData] = useState({ full_name: '', studio_name: '', phone: '' });
+  const [businessData, setBusinessData] = useState({
+    business_address: '', city: '', state: '', pincode: '', pan_number: '', gstin: '', sac_code: '998397',
+  });
   const [passwordData, setPasswordData] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
   const [notificationSettings, setNotificationSettings] = useState({
     email_bookings: true, email_payments: true, email_selections: true, browser_notifications: false,
@@ -38,8 +44,17 @@ export default function Settings() {
       const { data, error } = await supabase.from('profiles').select('*').eq('user_id', user?.id).single();
       if (error && error.code !== 'PGRST116') throw error;
       if (data) {
-        setProfile(data);
+        setProfile(data as Profile);
         setProfileData({ full_name: data.full_name || '', studio_name: data.studio_name || '', phone: data.phone || '' });
+        setBusinessData({
+          business_address: data.business_address || '',
+          city: data.city || '',
+          state: data.state || '',
+          pincode: data.pincode || '',
+          pan_number: data.pan_number || '',
+          gstin: data.gstin || '',
+          sac_code: data.sac_code || '998397',
+        });
       }
     } catch (error) { console.error('Error fetching profile:', error); }
     finally { setLoading(false); }
@@ -49,22 +64,46 @@ export default function Settings() {
     if (!user) return;
     setSaving(true);
     try {
+      const updateData = {
+        full_name: profileData.full_name.trim() || null,
+        studio_name: profileData.studio_name.trim() || null,
+        phone: profileData.phone.trim() || null,
+      };
       if (profile) {
-        const { error } = await supabase.from('profiles').update({
-          full_name: profileData.full_name.trim() || null,
-          studio_name: profileData.studio_name.trim() || null,
-          phone: profileData.phone.trim() || null,
-        }).eq('user_id', user.id);
+        const { error } = await supabase.from('profiles').update(updateData).eq('user_id', user.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from('profiles').insert({
-          user_id: user.id, full_name: profileData.full_name.trim() || null,
-          studio_name: profileData.studio_name.trim() || null, phone: profileData.phone.trim() || null,
-        });
+        const { error } = await supabase.from('profiles').insert({ user_id: user.id, ...updateData });
         if (error) throw error;
       }
       toast.success('Profile updated'); fetchProfile();
     } catch (error: any) { toast.error(error.message || 'Failed to update profile'); }
+    finally { setSaving(false); }
+  };
+
+  const handleSaveBusiness = async () => {
+    if (!user) return;
+    setSaving(true);
+    try {
+      const updateData = {
+        studio_name: profileData.studio_name.trim() || null,
+        business_address: businessData.business_address.trim() || null,
+        city: businessData.city.trim() || null,
+        state: businessData.state.trim() || null,
+        pincode: businessData.pincode.trim() || null,
+        pan_number: businessData.pan_number.trim() || null,
+        gstin: businessData.gstin.trim() || null,
+        sac_code: businessData.sac_code.trim() || '998397',
+      };
+      if (profile) {
+        const { error } = await supabase.from('profiles').update(updateData).eq('user_id', user.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('profiles').insert({ user_id: user.id, ...updateData });
+        if (error) throw error;
+      }
+      toast.success('Business details saved'); fetchProfile();
+    } catch (error: any) { toast.error(error.message || 'Failed to save business details'); }
     finally { setSaving(false); }
   };
 
@@ -97,7 +136,6 @@ export default function Settings() {
     }
     setChangingPassword(true);
     try {
-      // First verify current password by signing in
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email: user?.email || '',
         password: passwordData.currentPassword,
@@ -106,7 +144,6 @@ export default function Settings() {
         toast.error('Current password is incorrect');
         return;
       }
-      // Then update password
       const { error } = await supabase.auth.updateUser({ password: passwordData.newPassword });
       if (error) throw error;
       toast.success('Password updated successfully');
@@ -174,17 +211,18 @@ export default function Settings() {
                 <h3 className="text-lg font-semibold mb-6">Studio Details</h3>
                 <div className="grid gap-4">
                   <div className="space-y-2"><Label>Studio Name</Label><Input value={profileData.studio_name} onChange={(e) => setProfileData({ ...profileData, studio_name: e.target.value })} placeholder="Your studio name" /></div>
-                  <div className="space-y-2"><Label>Business Address</Label><Input placeholder="Street address" /></div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2"><Label>City</Label><Input placeholder="City" /></div>
-                    <div className="space-y-2"><Label>PIN Code</Label><Input placeholder="123456" /></div>
+                  <div className="space-y-2"><Label>Business Address</Label><Input value={businessData.business_address} onChange={(e) => setBusinessData({ ...businessData, business_address: e.target.value })} placeholder="Street address" /></div>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="space-y-2"><Label>City</Label><Input value={businessData.city} onChange={(e) => setBusinessData({ ...businessData, city: e.target.value })} placeholder="City" /></div>
+                    <div className="space-y-2"><Label>State</Label><Input value={businessData.state} onChange={(e) => setBusinessData({ ...businessData, state: e.target.value })} placeholder="State" /></div>
+                    <div className="space-y-2"><Label>PIN Code</Label><Input value={businessData.pincode} onChange={(e) => setBusinessData({ ...businessData, pincode: e.target.value })} placeholder="123456" /></div>
                   </div>
-                  <div className="space-y-2"><Label>GSTIN (Optional)</Label><Input placeholder="22AAAAA0000A1Z5" /><p className="text-xs text-muted-foreground">Required for GST-compliant invoices</p></div>
-                  <div className="space-y-2"><Label>PAN Number</Label><Input placeholder="ABCDE1234F" /></div>
-                  <div className="space-y-2"><Label>SAC Code</Label><Input placeholder="998397" defaultValue="998397" /><p className="text-xs text-muted-foreground">Photography services SAC code</p></div>
+                  <div className="space-y-2"><Label>GSTIN (Optional)</Label><Input value={businessData.gstin} onChange={(e) => setBusinessData({ ...businessData, gstin: e.target.value })} placeholder="22AAAAA0000A1Z5" /><p className="text-xs text-muted-foreground">Required for GST-compliant invoices</p></div>
+                  <div className="space-y-2"><Label>PAN Number</Label><Input value={businessData.pan_number} onChange={(e) => setBusinessData({ ...businessData, pan_number: e.target.value })} placeholder="ABCDE1234F" /></div>
+                  <div className="space-y-2"><Label>SAC Code</Label><Input value={businessData.sac_code} onChange={(e) => setBusinessData({ ...businessData, sac_code: e.target.value })} placeholder="998397" /><p className="text-xs text-muted-foreground">Photography services SAC code</p></div>
                 </div>
                 <div className="flex justify-end mt-6">
-                  <Button onClick={handleSaveProfile} disabled={saving} className="btn-fade">{saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}Save Changes</Button>
+                  <Button onClick={handleSaveBusiness} disabled={saving} className="btn-fade">{saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}Save Changes</Button>
                 </div>
               </div>
             </TabsContent>

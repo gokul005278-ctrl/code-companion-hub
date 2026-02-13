@@ -11,8 +11,8 @@ import {
   Calendar as CalendarIcon,
   Clock,
   MapPin,
-  Users,
   Plus,
+  PhoneCall,
 } from 'lucide-react';
 import {
   format,
@@ -60,6 +60,7 @@ interface LeadFollowUp {
   name: string;
   follow_up_date: string;
   event_type: string | null;
+  status: string;
 }
 
 type ViewMode = 'month' | 'week' | 'day';
@@ -122,15 +123,16 @@ export default function BookingsCalendar() {
           .order('scheduled_date', { ascending: true }),
         supabase
           .from('leads')
-          .select('id, name, follow_up_date, event_type')
+          .select('id, name, follow_up_date, event_type, status')
           .gte('follow_up_date', startStr)
           .lte('follow_up_date', endStr)
+          .not('status', 'in', '("won","lost")')
           .order('follow_up_date', { ascending: true }),
       ]);
 
       const bookingsData = (bookingsRes.data as Booking[]) || [];
       setBookings(bookingsData);
-      
+
       // Enrich tasks with booking client name
       const tasksData = (tasksRes.data || []).map(t => {
         const booking = bookingsData.find(b => b.id === t.booking_id);
@@ -205,6 +207,7 @@ export default function BookingsCalendar() {
         {calendarDays.map((day, index) => {
           const dayBookings = getBookingsForDate(day);
           const dayTasks = getTasksForDate(day);
+          const dayLeads = getLeadFollowUpsForDate(day);
           const conflict = hasConflict(day);
           const isCurrentMonth = isSameMonth(day, currentDate);
           const isSelected = selectedDate && isSameDay(day, selectedDate);
@@ -252,7 +255,7 @@ export default function BookingsCalendar() {
                     {dayTasks.slice(0, 5).map((task) => {
                       const typeColor = taskTypeColors[task.task_type] || taskTypeColors.delivery;
                       return (
-                         <div
+                        <div
                           key={task.id}
                           className={cn('h-2 w-2 rounded-full', typeColor.dot, task.status === 'completed' && 'opacity-40')}
                           title={`${typeColor.label}: ${task.title} [${task.booking_client_name || ''}] (${task.status})`}
@@ -263,6 +266,19 @@ export default function BookingsCalendar() {
                       <span className="text-[9px] text-muted-foreground">+{dayTasks.length - 5}</span>
                     )}
                   </div>
+                )}
+                {/* Lead follow-ups */}
+                {dayLeads.slice(0, 1).map((lead) => (
+                  <div
+                    key={lead.id}
+                    className="text-xs px-1.5 py-0.5 rounded truncate bg-amber-500/15 text-amber-600 border-l-2 border-amber-500/40"
+                    onClick={(e) => { e.stopPropagation(); navigate('/leads'); }}
+                  >
+                    📞 {lead.name}
+                  </div>
+                ))}
+                {dayLeads.length > 1 && (
+                  <p className="text-[9px] text-amber-600">+{dayLeads.length - 1} follow-ups</p>
                 )}
               </div>
             </div>
@@ -278,6 +294,7 @@ export default function BookingsCalendar() {
         {weekDays.map((day, index) => {
           const dayBookings = getBookingsForDate(day);
           const dayTasks = getTasksForDate(day);
+          const dayLeads = getLeadFollowUpsForDate(day);
 
           return (
             <div key={index} className={cn('min-h-[400px] border-r border-border last:border-r-0', isToday(day) && 'bg-primary/5')}>
@@ -303,13 +320,29 @@ export default function BookingsCalendar() {
                 {dayTasks.map((task) => {
                   const typeColor = taskTypeColors[task.task_type] || taskTypeColors.delivery;
                   return (
-                    <div key={task.id} className={cn('p-1.5 rounded border border-border/50 flex items-center gap-1.5', task.status === 'completed' && 'opacity-50')}>
-                      <div className={cn('h-2.5 w-2.5 rounded-full flex-shrink-0', typeColor.dot)} />
-                      <span className="text-xs truncate">{task.title}</span>
-                      <span className="text-[10px] text-muted-foreground ml-auto">{getTaskStatusIcon(task.status)}</span>
+                    <div key={task.id} className={cn('p-1.5 rounded border border-border/50 flex items-start gap-1.5', task.status === 'completed' && 'opacity-50')}>
+                      <div className={cn('h-2.5 w-2.5 rounded-full flex-shrink-0 mt-0.5', typeColor.dot)} />
+                      <div className="min-w-0 flex-1">
+                        <span className="text-xs truncate block">{task.title}</span>
+                        <span className="text-[10px] text-muted-foreground">{task.booking_client_name}</span>
+                      </div>
+                      <span className="text-[10px] text-muted-foreground">{getTaskStatusIcon(task.status)}</span>
                     </div>
                   );
                 })}
+                {/* Lead follow-ups in week view */}
+                {dayLeads.map((lead) => (
+                  <div
+                    key={lead.id}
+                    className="p-1.5 rounded border border-amber-500/30 bg-amber-500/10 cursor-pointer"
+                    onClick={() => navigate('/leads')}
+                  >
+                    <p className="text-xs text-amber-600 flex items-center gap-1">
+                      <PhoneCall className="h-3 w-3" />
+                      <span className="truncate">{lead.name}</span>
+                    </p>
+                  </div>
+                ))}
               </div>
             </div>
           );
@@ -321,16 +354,16 @@ export default function BookingsCalendar() {
   const renderDayView = () => {
     const dayBookings = getBookingsForDate(currentDate);
     const dayTasks = getTasksForDate(currentDate);
+    const dayLeads = getLeadFollowUpsForDate(currentDate);
 
     return (
       <div className="zoho-card p-6">
         <h3 className="text-lg font-semibold mb-4">{format(currentDate, 'EEEE, MMMM d, yyyy')}</h3>
 
-        {/* Bookings */}
-        {dayBookings.length === 0 && dayTasks.length === 0 ? (
+        {dayBookings.length === 0 && dayTasks.length === 0 && dayLeads.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground">
             <CalendarIcon className="h-12 w-12 mx-auto mb-4 opacity-50" />
-            <p>No bookings or tasks for this day</p>
+            <p>No bookings, tasks, or follow-ups for this day</p>
           </div>
         ) : (
           <div className="space-y-4">
@@ -369,12 +402,35 @@ export default function BookingsCalendar() {
                         <div className={cn('h-3 w-3 rounded-full flex-shrink-0', typeColor.dot)} />
                         <div className="flex-1">
                           <p className="text-sm font-medium">{task.title}</p>
-                          <p className="text-xs text-muted-foreground">{typeColor.label}</p>
+                          <p className="text-xs text-muted-foreground">{typeColor.label} • {task.booking_client_name}</p>
                         </div>
                         <StatusBadge status={task.status} />
                       </div>
                     );
                   })}
+                </div>
+              </div>
+            )}
+
+            {/* Day lead follow-ups */}
+            {dayLeads.length > 0 && (
+              <div>
+                <h4 className="font-medium text-sm mb-2 flex items-center gap-2">
+                  <PhoneCall className="h-4 w-4 text-amber-500" /> Follow-ups ({dayLeads.length})
+                </h4>
+                <div className="space-y-2">
+                  {dayLeads.map((lead) => (
+                    <div
+                      key={lead.id}
+                      className="p-3 rounded-lg border border-amber-500/30 bg-amber-500/5 cursor-pointer hover:shadow-sm transition-shadow"
+                      onClick={() => navigate('/leads')}
+                    >
+                      <p className="text-sm font-medium">{lead.name}</p>
+                      <p className="text-xs text-muted-foreground capitalize">
+                        {lead.event_type?.replace(/_/g, ' ') || 'General'} • {lead.status}
+                      </p>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
@@ -427,6 +483,11 @@ export default function BookingsCalendar() {
             <span className="text-muted-foreground">{val.label}</span>
           </div>
         ))}
+        <span className="text-xs text-muted-foreground font-medium ml-2">|</span>
+        <div className="flex items-center gap-1.5 text-xs">
+          <PhoneCall className="h-3 w-3 text-amber-500" />
+          <span className="text-muted-foreground">Follow-ups</span>
+        </div>
       </div>
 
       {/* Calendar */}
@@ -448,9 +509,8 @@ export default function BookingsCalendar() {
             <Button variant="ghost" size="sm" onClick={() => setSelectedDate(null)} className="h-6 w-6 p-0">×</Button>
           </div>
 
-          {/* Bookings for selected date */}
-          {getBookingsForDate(selectedDate).length === 0 && getTasksForDate(selectedDate).length === 0 ? (
-            <p className="text-sm text-muted-foreground">No bookings or tasks</p>
+          {getBookingsForDate(selectedDate).length === 0 && getTasksForDate(selectedDate).length === 0 && getLeadFollowUpsForDate(selectedDate).length === 0 ? (
+            <p className="text-sm text-muted-foreground">No bookings, tasks, or follow-ups</p>
           ) : (
             <div className="space-y-2">
               {getBookingsForDate(selectedDate).map((booking) => (
@@ -476,10 +536,29 @@ export default function BookingsCalendar() {
                         <span className={cn('text-xs flex-1 truncate', task.status === 'completed' && 'line-through text-muted-foreground')}>
                           {task.title}
                         </span>
-                        <span className="text-[10px] text-muted-foreground">{typeColor.label}</span>
+                        <span className="text-[10px] text-muted-foreground">{task.booking_client_name}</span>
                       </div>
                     );
                   })}
+                </div>
+              )}
+
+              {/* Lead follow-ups for selected date */}
+              {getLeadFollowUpsForDate(selectedDate).length > 0 && (
+                <div className="pt-2 border-t border-border">
+                  <p className="text-xs font-medium text-amber-600 mb-1.5 flex items-center gap-1">
+                    <PhoneCall className="h-3 w-3" /> Follow-ups
+                  </p>
+                  {getLeadFollowUpsForDate(selectedDate).map((lead) => (
+                    <div
+                      key={lead.id}
+                      className="flex items-center gap-2 py-1 cursor-pointer hover:bg-accent/30 rounded px-1"
+                      onClick={() => navigate('/leads')}
+                    >
+                      <span className="text-xs flex-1 truncate">{lead.name}</span>
+                      <span className="text-[10px] text-amber-600 capitalize">{lead.event_type || 'General'}</span>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
