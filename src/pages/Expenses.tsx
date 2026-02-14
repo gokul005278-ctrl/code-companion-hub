@@ -285,14 +285,14 @@ export default function Expenses() {
       <div className="grid grid-cols-2 gap-3 mb-6">
         <div className="zoho-card p-3 sm:p-4">
           <p className="text-xs sm:text-sm text-muted-foreground">This Month</p>
-          <p className="text-lg sm:text-xl font-bold text-foreground">
-            Rs. {currentMonthExpenses.toLocaleString()}
+          <p className="text-lg sm:text-xl font-bold text-destructive">
+            ₹{currentMonthExpenses.toLocaleString('en-IN')}
           </p>
         </div>
         <div className="zoho-card p-3 sm:p-4">
           <p className="text-xs sm:text-sm text-muted-foreground">Filtered Total</p>
-          <p className="text-lg sm:text-xl font-bold text-foreground">
-            Rs. {totalExpenses.toLocaleString()}
+          <p className="text-lg sm:text-xl font-bold text-destructive">
+            ₹{totalExpenses.toLocaleString('en-IN')}
           </p>
         </div>
       </div>
@@ -386,7 +386,7 @@ export default function Expenses() {
                 <p className="text-xs text-muted-foreground">
                   {format(new Date(expense.expense_date), 'MMM dd, yyyy')}
                 </p>
-                <p className="font-semibold text-foreground">Rs. {Number(expense.amount).toLocaleString()}</p>
+                <p className="font-semibold text-destructive">₹{Number(expense.amount).toLocaleString('en-IN')}</p>
               </div>
             </div>
           ))}
@@ -405,8 +405,8 @@ export default function Expenses() {
       >
         {selectedExpense && (
           <div className="space-y-4">
-            <div className="text-2xl font-bold text-foreground">
-              Rs. {Number(selectedExpense.amount).toLocaleString()}
+            <div className="text-2xl font-bold text-destructive">
+              ₹{Number(selectedExpense.amount).toLocaleString('en-IN')}
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>

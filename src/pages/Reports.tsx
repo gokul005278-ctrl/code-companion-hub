@@ -279,15 +279,22 @@ export default function Reports() {
     finally { setLoading(false); }
   };
 
+  // Calculate revenue growth for the period
+  const lastMonthRev = monthlyData.length >= 2 ? monthlyData[monthlyData.length - 2]?.revenue || 0 : 0;
+  const currentMonthRev = monthlyData.length >= 1 ? monthlyData[monthlyData.length - 1]?.revenue || 0 : 0;
+  const revenueGrowthPercent = lastMonthRev > 0 ? Math.round(((currentMonthRev - lastMonthRev) / lastMonthRev) * 100) : (currentMonthRev > 0 ? 100 : 0);
+  const revenueGrowthPositive = revenueGrowthPercent >= 0;
+  const revenueGrowthText = revenueGrowthPercent !== 0 ? `${revenueGrowthPositive ? '+' : ''}${revenueGrowthPercent}%` : '';
+
   const statCards = [
-    { title: 'Total Revenue', value: `Rs. ${stats.totalRevenue.toLocaleString()}`, icon: DollarSign, color: 'text-success', bgColor: 'bg-success/10', change: '+12%', positive: true },
-    { title: 'Net Profit', value: `Rs. ${stats.netProfit.toLocaleString()}`, icon: TrendingUp, color: stats.netProfit >= 0 ? 'text-success' : 'text-destructive', bgColor: stats.netProfit >= 0 ? 'bg-success/10' : 'bg-destructive/10', change: stats.netProfit >= 0 ? '+8%' : '-5%', positive: stats.netProfit >= 0 },
-    { title: 'Total Expenses', value: `Rs. ${stats.totalExpenses.toLocaleString()}`, icon: Receipt, color: 'text-destructive', bgColor: 'bg-destructive/10', change: '-3%', positive: false },
-    { title: 'Avg Booking Value', value: `Rs. ${Math.round(stats.avgBookingValue).toLocaleString()}`, icon: Target, color: 'text-primary', bgColor: 'bg-primary/10', change: '+5%', positive: true },
-    { title: 'Pending Payments', value: `Rs. ${stats.pendingPayments.toLocaleString()}`, icon: AlertCircle, color: 'text-destructive', bgColor: 'bg-destructive/10', change: '-3%', positive: false },
-    { title: 'Conversion Rate', value: `${stats.conversionRate.toFixed(1)}%`, icon: Percent, color: 'text-success', bgColor: 'bg-success/10', change: '+2%', positive: true },
-    { title: 'Repeat Clients', value: `${stats.repeatClientRate.toFixed(0)}%`, icon: Users, color: 'text-info', bgColor: 'bg-info/10', change: '+4%', positive: true },
-    { title: 'Avg. Turnaround', value: `${stats.avgTurnaroundDays} days`, icon: Clock, color: 'text-muted-foreground', bgColor: 'bg-muted', change: '-5%', positive: true },
+    { title: 'Total Revenue', value: `₹${stats.totalRevenue.toLocaleString('en-IN')}`, icon: DollarSign, color: 'text-success', bgColor: 'bg-success/10', change: `${revenueGrowthText}`, positive: revenueGrowthPositive },
+    { title: 'Net Profit', value: `₹${stats.netProfit.toLocaleString('en-IN')}`, icon: TrendingUp, color: stats.netProfit >= 0 ? 'text-success' : 'text-destructive', bgColor: stats.netProfit >= 0 ? 'bg-success/10' : 'bg-destructive/10', change: stats.netProfit >= 0 ? '+' : '-', positive: stats.netProfit >= 0 },
+    { title: 'Total Expenses', value: `₹${stats.totalExpenses.toLocaleString('en-IN')}`, icon: Receipt, color: 'text-destructive', bgColor: 'bg-destructive/10', change: '', positive: false },
+    { title: 'Avg Booking Value', value: `₹${Math.round(stats.avgBookingValue).toLocaleString('en-IN')}`, icon: Target, color: 'text-primary', bgColor: 'bg-primary/10', change: '', positive: true },
+    { title: 'Pending Payments', value: `₹${stats.pendingPayments.toLocaleString('en-IN')}`, icon: AlertCircle, color: 'text-warning', bgColor: 'bg-warning/10', change: '', positive: false },
+    { title: 'Conversion Rate', value: `${stats.conversionRate.toFixed(1)}%`, icon: Percent, color: stats.conversionRate >= 50 ? 'text-success' : 'text-warning', bgColor: stats.conversionRate >= 50 ? 'bg-success/10' : 'bg-warning/10', change: '', positive: stats.conversionRate >= 50 },
+    { title: 'Repeat Clients', value: `${stats.repeatClientRate.toFixed(0)}%`, icon: Users, color: 'text-info', bgColor: 'bg-info/10', change: '', positive: true },
+    { title: 'Avg. Turnaround', value: `${stats.avgTurnaroundDays} days`, icon: Clock, color: 'text-muted-foreground', bgColor: 'bg-muted', change: '', positive: true },
   ];
 
   return (
@@ -561,7 +568,7 @@ export default function Reports() {
             </div>
           </div>
 
-          {/* Summary KPIs */}
+          {/* Business Health Summary - Enhanced */}
           <div className="zoho-card p-6">
             <h3 className="text-lg font-semibold mb-4">Business Health Summary</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
@@ -570,7 +577,7 @@ export default function Reports() {
                 <p className="text-sm text-muted-foreground">Total Bookings</p>
               </div>
               <div className="text-center">
-                <p className="text-3xl font-bold text-success">Rs. {Math.round(stats.avgMonthlyRevenue).toLocaleString()}</p>
+                <p className="text-3xl font-bold text-success">₹{Math.round(stats.avgMonthlyRevenue).toLocaleString('en-IN')}</p>
                 <p className="text-sm text-muted-foreground">Avg Monthly Revenue</p>
               </div>
               <div className="text-center">
@@ -583,6 +590,67 @@ export default function Reports() {
                 </p>
                 <p className="text-sm text-muted-foreground">Profit Margin</p>
               </div>
+            </div>
+          </div>
+
+          {/* Additional Insights Section */}
+          <div className="zoho-card p-6">
+            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2"><Zap className="h-5 w-5 text-warning" />Key Performance Indicators</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="p-4 rounded-lg bg-success/5 border border-success/20">
+                <p className="text-sm text-muted-foreground">Revenue per Client</p>
+                <p className="text-xl font-bold text-success">
+                  ₹{stats.totalClients > 0 ? Math.round(stats.totalRevenue / stats.totalClients).toLocaleString('en-IN') : '0'}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">Higher is better — aim for upselling</p>
+              </div>
+              <div className="p-4 rounded-lg bg-primary/5 border border-primary/20">
+                <p className="text-sm text-muted-foreground">Collection Efficiency</p>
+                <p className="text-xl font-bold text-primary">
+                  {stats.totalRevenue > 0 ? `${(((stats.totalRevenue - stats.pendingPayments) / stats.totalRevenue) * 100).toFixed(0)}%` : '0%'}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">Percentage of revenue collected</p>
+              </div>
+              <div className="p-4 rounded-lg bg-warning/5 border border-warning/20">
+                <p className="text-sm text-muted-foreground">Expense Ratio</p>
+                <p className="text-xl font-bold text-warning">
+                  {stats.totalRevenue > 0 ? `${((stats.totalExpenses / stats.totalRevenue) * 100).toFixed(0)}%` : '0%'}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">Lower is better — target below 40%</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Monthly Performance Table */}
+          <div className="zoho-card p-6">
+            <h3 className="text-lg font-semibold mb-4">Monthly Performance Breakdown</h3>
+            <div className="overflow-x-auto">
+              <table className="zoho-table w-full">
+                <thead>
+                  <tr>
+                    <th>Month</th>
+                    <th className="text-right">Revenue</th>
+                    <th className="text-right">Expenses</th>
+                    <th className="text-right">Profit</th>
+                    <th className="text-right">Bookings</th>
+                    <th className="text-right">New Clients</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {monthlyData.map((m) => (
+                    <tr key={m.month}>
+                      <td className="font-medium">{m.month}</td>
+                      <td className="text-right text-success">₹{m.revenue.toLocaleString('en-IN')}</td>
+                      <td className="text-right text-destructive">₹{m.expenses.toLocaleString('en-IN')}</td>
+                      <td className={cn('text-right font-medium', m.profit >= 0 ? 'text-success' : 'text-destructive')}>
+                        ₹{m.profit.toLocaleString('en-IN')}
+                      </td>
+                      <td className="text-right">{m.bookings}</td>
+                      <td className="text-right">{m.newClients}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>

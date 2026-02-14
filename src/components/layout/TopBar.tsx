@@ -52,8 +52,9 @@ export function TopBar({ title, subtitle }: TopBarProps) {
   const navigate = useNavigate();
   const { user } = useAuth();
 
+  // Only fetch notifications once on mount, not on every page switch
   useEffect(() => {
-    if (user) {
+    if (user && notifications.length === 0) {
       fetchNotifications();
     }
   }, [user]);

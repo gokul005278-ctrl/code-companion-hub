@@ -62,7 +62,7 @@ export default function ClientSelect() {
   const [error, setError] = useState<string | null>(null);
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
-  const [signedFiles, setSignedFiles] = useState<(MediaFile & { signedUrl: string })[]>([]);
+  const [signedFiles, setSignedFiles] = useState<(MediaFile & { signedUrl: string; file_type?: string | null })[]>([]);
 
   useEffect(() => {
     if (token) {
@@ -405,10 +405,10 @@ export default function ClientSelect() {
         </div>
       )}
 
-      {/* Fullscreen Viewer with Zoom */}
+      {/* Fullscreen Viewer with Zoom - supports images and videos */}
       {viewerOpen && signedFiles.length > 0 && (
         <FullscreenImageViewer
-          files={signedFiles}
+          files={signedFiles.map(f => ({ ...f, file_type: f.file_type }))}
           currentIndex={viewerIndex}
           onClose={() => setViewerOpen(false)}
           onPrev={() => setViewerIndex(i => Math.max(0, i - 1))}
@@ -442,21 +442,21 @@ function GalleryItem({
   const [imageUrl, setImageUrl] = useState<string | null>(signedUrl);
   const [isLoading, setIsLoading] = useState(!signedUrl);
   const isImage = file.file_type?.startsWith('image/');
-  const isVideo = file.file_type?.startsWith('video/');
+  const isVideo = file.file_type?.startsWith('video/') || /\.(mp4|mov|avi|webm|mkv)$/i.test(file.file_name);
 
   useEffect(() => {
     if (signedUrl) {
       setImageUrl(signedUrl);
       setIsLoading(false);
     } else {
-      const loadImage = async () => {
+      const loadUrl = async () => {
         const { data } = await supabase.storage
           .from('media')
           .createSignedUrl(file.file_url, 3600);
         setImageUrl(data?.signedUrl || null);
         setIsLoading(false);
       };
-      loadImage();
+      loadUrl();
     }
   }, [file.file_url, signedUrl]);
 
@@ -469,7 +469,7 @@ function GalleryItem({
     >
       <div className="aspect-[4/3] bg-muted">
         {isLoading ? (
-          <div className="shimmer h-full w-full" />
+          <div className="shimmer-static h-full w-full" />
         ) : isImage && imageUrl ? (
           <img
             src={imageUrl}
@@ -477,12 +477,27 @@ function GalleryItem({
             className="w-full h-full object-cover"
             onClick={onOpenViewer}
           />
-        ) : isVideo ? (
+        ) : isVideo && imageUrl ? (
           <div
-            className="w-full h-full flex items-center justify-center bg-muted"
+            className="w-full h-full relative bg-muted cursor-pointer"
             onClick={onOpenViewer}
           >
-            <Video className="h-12 w-12 text-muted-foreground" />
+            {/* Video thumbnail: render first frame */}
+            <video
+              src={imageUrl}
+              className="w-full h-full object-cover"
+              muted
+              preload="metadata"
+              onLoadedData={(e) => {
+                // Seek to 1 second for thumbnail
+                (e.target as HTMLVideoElement).currentTime = 1;
+              }}
+            />
+            <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+              <div className="p-3 rounded-full bg-black/60">
+                <Video className="h-6 w-6 text-white" />
+              </div>
+            </div>
           </div>
         ) : (
           <div

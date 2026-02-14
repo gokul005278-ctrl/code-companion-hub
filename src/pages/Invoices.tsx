@@ -455,8 +455,8 @@ export default function Invoices() {
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Total Received</p>
-              <p className="text-xl font-bold text-foreground">
-                Rs. {totalReceived.toLocaleString()}
+              <p className="text-xl font-bold text-success">
+                ₹{totalReceived.toLocaleString('en-IN')}
               </p>
             </div>
           </div>
@@ -469,7 +469,7 @@ export default function Invoices() {
             <div>
               <p className="text-sm text-muted-foreground">This Month</p>
               <p className="text-xl font-bold text-foreground">
-                Rs. {thisMonthTotal.toLocaleString()}
+                ₹{thisMonthTotal.toLocaleString('en-IN')}
               </p>
             </div>
           </div>

@@ -63,12 +63,14 @@ export function AppSidebar() {
   const navRef = useRef<HTMLElement>(null);
   const scrollPosRef = useRef(0);
 
-  // Save scroll position before navigation
+  // Save and restore scroll position on navigation
   useEffect(() => {
     const nav = navRef.current;
     if (!nav) return;
-    // Restore saved position after route change
-    nav.scrollTop = scrollPosRef.current;
+    // Restore saved position after route change (use rAF to ensure DOM is ready)
+    requestAnimationFrame(() => {
+      nav.scrollTop = scrollPosRef.current;
+    });
   }, [location.pathname]);
 
   const handleNavClick = () => {

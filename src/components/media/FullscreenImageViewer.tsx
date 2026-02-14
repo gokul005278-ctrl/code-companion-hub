@@ -1,10 +1,16 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { X, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Heart } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Heart, Video } from 'lucide-react';
+
+interface MediaFile {
+  signedUrl: string;
+  file_name: string;
+  file_type?: string | null;
+}
 
 interface FullscreenImageViewerProps {
-  files: { signedUrl: string; file_name: string }[];
+  files: MediaFile[];
   currentIndex: number;
   onClose: () => void;
   onPrev: () => void;
@@ -22,16 +28,20 @@ export function FullscreenImageViewer({
   onToggleFavorite,
   isFavorite,
 }: FullscreenImageViewerProps) {
-  const [zoom, setZoom] = useState(3); // Default 300% zoom
+  const [zoom, setZoom] = useState(3);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 
-  // Reset zoom and position when changing images
+  const currentFile = files[currentIndex];
+  const isVideo = currentFile?.file_type?.startsWith('video/') || 
+    /\.(mp4|mov|avi|webm|mkv)$/i.test(currentFile?.file_name || '');
+  const isImage = !isVideo;
+
   useEffect(() => {
-    setZoom(3);
+    setZoom(isVideo ? 1 : 3);
     setPosition({ x: 0, y: 0 });
-  }, [currentIndex]);
+  }, [currentIndex, isVideo]);
 
   const handleZoomIn = () => setZoom((z) => Math.min(z + 0.5, 5));
   const handleZoomOut = () => {
@@ -40,7 +50,7 @@ export function FullscreenImageViewer({
   };
 
   const handleMouseDown = (e: React.MouseEvent) => {
-    if (zoom > 1) {
+    if (zoom > 1 && isImage) {
       setIsDragging(true);
       setDragStart({ x: e.clientX - position.x, y: e.clientY - position.y });
     }
@@ -65,30 +75,35 @@ export function FullscreenImageViewer({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleKeyDown]);
 
-  const currentFile = files[currentIndex];
-
   return (
     <div className="fixed inset-0 z-[60] bg-black flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 bg-black/80">
         <p className="text-white text-sm">{currentIndex + 1} of {files.length}</p>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" onClick={handleZoomOut} className="text-white hover:bg-white/20">
-            <ZoomOut className="h-5 w-5" />
-          </Button>
-          <span className="text-white text-sm min-w-[60px] text-center">{Math.round(zoom * 100)}%</span>
-          <Button variant="ghost" size="icon" onClick={handleZoomIn} className="text-white hover:bg-white/20">
-            <ZoomIn className="h-5 w-5" />
-          </Button>
+          {isImage && (
+            <>
+              <Button variant="ghost" size="icon" onClick={handleZoomOut} className="text-white hover:bg-white/20">
+                <ZoomOut className="h-5 w-5" />
+              </Button>
+              <span className="text-white text-sm min-w-[60px] text-center">{Math.round(zoom * 100)}%</span>
+              <Button variant="ghost" size="icon" onClick={handleZoomIn} className="text-white hover:bg-white/20">
+                <ZoomIn className="h-5 w-5" />
+              </Button>
+            </>
+          )}
           <Button variant="ghost" size="icon" onClick={onClose} className="text-white hover:bg-white/20 ml-4">
             <X className="h-5 w-5" />
           </Button>
         </div>
       </div>
 
-      {/* Image Container */}
+      {/* Content Container */}
       <div 
-        className="flex-1 flex items-center justify-center relative overflow-hidden cursor-grab active:cursor-grabbing"
+        className={cn(
+          "flex-1 flex items-center justify-center relative overflow-hidden",
+          isImage && "cursor-grab active:cursor-grabbing"
+        )}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
@@ -96,8 +111,7 @@ export function FullscreenImageViewer({
       >
         {currentIndex > 0 && (
           <Button 
-            variant="ghost" 
-            size="icon" 
+            variant="ghost" size="icon" 
             onClick={(e) => { e.stopPropagation(); onPrev(); }} 
             className="absolute left-4 z-10 h-12 w-12 rounded-full bg-black/50 text-white hover:bg-black/70"
           >
@@ -105,7 +119,14 @@ export function FullscreenImageViewer({
           </Button>
         )}
         
-        {currentFile?.signedUrl && (
+        {isVideo && currentFile?.signedUrl ? (
+          <video
+            src={currentFile.signedUrl}
+            controls
+            autoPlay
+            className="max-w-[95vw] max-h-[85vh] rounded-lg"
+          />
+        ) : currentFile?.signedUrl ? (
           <img
             src={currentFile.signedUrl}
             alt={currentFile.file_name}
@@ -117,12 +138,11 @@ export function FullscreenImageViewer({
             }}
             draggable={false}
           />
-        )}
+        ) : null}
         
         {currentIndex < files.length - 1 && (
           <Button 
-            variant="ghost" 
-            size="icon" 
+            variant="ghost" size="icon" 
             onClick={(e) => { e.stopPropagation(); onNext(); }} 
             className="absolute right-4 z-10 h-12 w-12 rounded-full bg-black/50 text-white hover:bg-black/70"
           >
@@ -147,7 +167,7 @@ export function FullscreenImageViewer({
       {/* Instructions */}
       <div className="px-4 py-2 bg-black/80 text-center">
         <p className="text-white/60 text-xs">
-          Use arrow keys to navigate • Drag to pan when zoomed • Click ❤️ to select
+          {isVideo ? 'Use arrow keys to navigate • Click ❤️ to select' : 'Use arrow keys to navigate • Drag to pan when zoomed • Click ❤️ to select'}
         </p>
       </div>
     </div>

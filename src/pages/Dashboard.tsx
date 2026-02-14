@@ -478,7 +478,7 @@ export default function Dashboard() {
                 <span className="text-sm font-medium">This Month</span>
               </div>
               <p className="text-lg font-bold text-success">
-                ₹{stats.monthlyRevenue.toLocaleString()}
+                ₹{stats.monthlyRevenue.toLocaleString('en-IN')}
               </p>
               <p className="text-xs text-muted-foreground">Revenue collected</p>
             </div>
@@ -490,7 +490,7 @@ export default function Dashboard() {
                 <span className="text-sm font-medium">Expenses</span>
               </div>
               <p className="text-lg font-bold text-destructive">
-                ₹{stats.monthlyExpenses.toLocaleString()}
+                ₹{stats.monthlyExpenses.toLocaleString('en-IN')}
               </p>
               <p className="text-xs text-muted-foreground">This month</p>
             </div>
