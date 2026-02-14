@@ -83,7 +83,7 @@ export function MainLayout({ children, title, subtitle }: MainLayoutProps) {
             
             <main className={cn(
               "flex-1 overflow-auto overflow-x-hidden",
-              isMobile ? "p-3 pb-24" : "p-6"
+              isMobile ? "px-4 py-3 pb-24" : "p-6"
             )}>
               <div className="page-transition max-w-full">
                 {children}

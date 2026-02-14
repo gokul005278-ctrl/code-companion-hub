@@ -594,25 +594,28 @@ export default function Bookings() {
             </div>
           </div>
 
-          {/* Info Cards - larger */}
+          {/* Info Cards - larger with rupee colors */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="zoho-card p-4">
-              <p className="text-xs text-muted-foreground">Client</p>
-              <p className="font-semibold text-base truncate">{selectedBooking.client?.name || 'Walk-in'}</p>
-              {selectedBooking.client?.phone && <p className="text-xs text-muted-foreground mt-1">{selectedBooking.client.phone}</p>}
+            <div className="zoho-card p-5">
+              <p className="text-xs text-muted-foreground mb-1">Client</p>
+              <p className="font-semibold text-lg truncate">{selectedBooking.client?.name || 'Walk-in'}</p>
+              {selectedBooking.client?.phone && <p className="text-sm text-muted-foreground mt-1">{selectedBooking.client.phone}</p>}
             </div>
-            <div className="zoho-card p-4">
-              <p className="text-xs text-muted-foreground">Event</p>
-              <p className="font-semibold text-base">{eventTypes.find(e => e.value === selectedBooking.event_type)?.label}</p>
-              <p className="text-xs text-muted-foreground mt-1">{format(new Date(selectedBooking.event_date), 'MMM dd, yyyy')}</p>
+            <div className="zoho-card p-5">
+              <p className="text-xs text-muted-foreground mb-1">Event</p>
+              <p className="font-semibold text-lg">{eventTypes.find(e => e.value === selectedBooking.event_type)?.label}</p>
+              <p className="text-sm text-muted-foreground mt-1">{format(new Date(selectedBooking.event_date), 'MMM dd, yyyy')}</p>
             </div>
-            <div className="zoho-card p-4">
-              <p className="text-xs text-muted-foreground">Total / Paid</p>
-              <p className="font-semibold text-base">₹{Number(selectedBooking.total_amount).toLocaleString()}</p>
-              <p className="text-xs text-muted-foreground mt-1">Paid: ₹{Number(selectedBooking.advance_amount).toLocaleString()}</p>
+            <div className="zoho-card p-5">
+              <p className="text-xs text-muted-foreground mb-1">Total / Paid</p>
+              <p className="font-semibold text-lg text-foreground">₹{Number(selectedBooking.total_amount).toLocaleString('en-IN')}</p>
+              <p className="text-sm text-success mt-1">Paid: ₹{Number(selectedBooking.advance_amount).toLocaleString('en-IN')}</p>
+              {Number(selectedBooking.balance_amount) > 0 && (
+                <p className="text-xs text-destructive mt-0.5">Balance: ₹{Number(selectedBooking.balance_amount).toLocaleString('en-IN')}</p>
+              )}
             </div>
-            <div className="zoho-card p-4">
-              <p className="text-xs text-muted-foreground">Status</p>
+            <div className="zoho-card p-5">
+              <p className="text-xs text-muted-foreground mb-1">Status</p>
               <StatusBadge status={selectedBooking.status} className="mt-1" />
               <StatusBadge status={selectedBooking.payment_status || 'pending'} className="mt-1 ml-1" />
             </div>
